@@ -34,13 +34,22 @@ COPY --from=build /app/server/package.json ./server/
 COPY --from=build /app/server/dist ./server/dist
 COPY --from=build /app/client/dist ./client/dist
 
-# Run as the unprivileged user that ships with the image; the SQLite file lives on a volume.
-RUN mkdir -p /app/data && chown -R node:node /app
-USER node
+# gosu drops from root to the unprivileged `node` user after the entrypoint
+# fixes ownership of the (possibly freshly-mounted) database directory; see
+# docker-entrypoint.sh for why this can't just be a build-time `USER node`.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gosu \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /app/data && chown -R node:node /app
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 VOLUME ["/app/data"]
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server/dist/index.js"]

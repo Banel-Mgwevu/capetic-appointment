@@ -197,6 +197,7 @@ Configuration is validated at startup; the process exits with a clear message if
 
 - **Don't set `PORT` yourself** — most platforms inject it, and the app already reads `process.env.PORT`.
 - **SQLite needs a persistent disk.** Without one, `DATABASE_PATH` is wiped on every deploy. Mount a disk (e.g. `/var/data`) and point `DATABASE_PATH` at a file inside it.
+- **Mounted disks arrive owned by root**, but the container runs the app as an unprivileged `node` user for security. A plain build-time `USER node`/`chown` can't fix this, since the disk is only mounted at container *start*, after the image was built. `docker-entrypoint.sh` runs as root first, `chown`s the database directory, then drops to `node` (via `gosu`) to actually run the app — this is the same pattern the official Postgres/MySQL images use. If you see `EACCES: permission denied, mkdir '/var/data'` in your platform's logs, this is what fixes it; it's already wired into the Dockerfile.
 
 ## Branding and assets
 
