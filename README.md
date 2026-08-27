@@ -26,7 +26,7 @@ Then open <http://localhost:3000>. The SQLite database is written to the `appoin
 
 ### Locally
 
-Requires Node.js 22 or 24 and npm 10+. (`better-sqlite3` downloads a prebuilt binary for these versions, so no C++ toolchain is needed.)
+Requires Node.js 22 or 24 and npm 10+. `better-sqlite3` ships a prebuilt binary for these platforms, so no C++ toolchain is needed to install it. The repo's `.npmrc` sets `ignore-scripts=true` to make that reliable: npm has an undocumented-feeling default where, if a package ships a `binding.gyp` but no explicit `install`/`postinstall` script (true of `better-sqlite3`), npm runs `node-gyp rebuild` anyway — even though a prebuilt binary is sitting right there. `ignore-scripts=true` skips that. It's safe here: nothing else in this project's dependency tree needs an install script to run (verified — `esbuild`'s platform binary comes from `optionalDependencies`, not its postinstall).
 
 ```bash
 npm install
@@ -190,6 +190,13 @@ The customer's ID number is stored but never returned by the API.
 | `PRIVACY_CONTACT_EMAIL` | `privacy@capitec.example` | Shown on the in-app privacy notice for data-subject requests |
 
 Configuration is validated at startup; the process exits with a clear message if a value is invalid.
+
+### Deploying to Render (or similar PaaS)
+
+`.env.render.example` lists exactly what to set as Environment Variables in the dashboard (not as a committed `.env` file). Two things that trip people up:
+
+- **Don't set `PORT` yourself** — most platforms inject it, and the app already reads `process.env.PORT`.
+- **SQLite needs a persistent disk.** Without one, `DATABASE_PATH` is wiped on every deploy. Mount a disk (e.g. `/var/data`) and point `DATABASE_PATH` at a file inside it.
 
 ## Branding and assets
 

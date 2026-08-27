@@ -7,7 +7,7 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 # Copy manifests first so dependency installation is cached across code changes.
-COPY package.json package-lock.json ./
+COPY .npmrc package.json package-lock.json ./
 COPY server/package.json server/
 COPY client/package.json client/
 RUN npm ci
