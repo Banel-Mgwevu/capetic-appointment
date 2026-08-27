@@ -26,7 +26,7 @@ export function FindBookingPage() {
     const cleaned = reference.trim().toUpperCase().replace(/\s+/g, '');
     const withPrefix = cleaned.startsWith('APT-') ? cleaned : `APT-${cleaned}`;
     const nextErrors: typeof errors = {};
-    if (!/^APT-[A-Z0-9]{6}$/.test(withPrefix)) nextErrors.reference = 'References look like APT-7K3M9Q — six letters and numbers.';
+    if (!/^APT-[A-Z0-9]{6}$/.test(withPrefix)) nextErrors.reference = 'References look like APT-7K3M9Q (six letters and numbers).';
     if (contact.trim().length < 3) nextErrors.contact = 'Enter the email or phone number used to book.';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;

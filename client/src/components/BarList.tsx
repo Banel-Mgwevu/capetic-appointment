@@ -11,7 +11,7 @@ interface BarListProps {
   unit?: string;
 }
 
-/** Simple horizontal bar chart, CSS only — no charting dependency needed for this scale of data. */
+/** Simple horizontal bar chart, CSS only; no charting dependency needed for this scale of data. */
 export function BarList({ items, unit }: BarListProps) {
   const max = Math.max(1, ...items.map((i) => i.value + (i.secondaryValue ?? 0)));
 

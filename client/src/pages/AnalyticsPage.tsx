@@ -122,7 +122,7 @@ export function AnalyticsPage() {
         </div>
         <div className="stat-card">
           <span className="stat-card__label">Busiest hour</span>
-          <span className="stat-card__value">{data.busiestHour ? `${data.busiestHour}:00` : '—'}</span>
+          <span className="stat-card__value">{data.busiestHour ? `${data.busiestHour}:00` : 'N/A'}</span>
         </div>
       </div>
 

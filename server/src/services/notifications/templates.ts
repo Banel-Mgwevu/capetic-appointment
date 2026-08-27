@@ -28,7 +28,7 @@ export function confirmationMessages(appointment: Appointment, branch: Branch, s
       appointmentId: appointment.id,
       channel: 'EMAIL',
       recipient: appointment.customerEmail,
-      subject: `Your branch appointment is confirmed — ${appointment.reference}`,
+      subject: `Your branch appointment is confirmed (${appointment.reference})`,
       body: [
         `Hi ${firstName(appointment.customerName)},`,
         '',
@@ -65,7 +65,7 @@ export function cancellationMessages(appointment: Appointment, branch: Branch, s
       appointmentId: appointment.id,
       channel: 'EMAIL',
       recipient: appointment.customerEmail,
-      subject: `Your branch appointment has been cancelled — ${appointment.reference}`,
+      subject: `Your branch appointment has been cancelled (${appointment.reference})`,
       body: [
         `Hi ${firstName(appointment.customerName)},`,
         '',

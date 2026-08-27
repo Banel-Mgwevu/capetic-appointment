@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { MessageLog } from '../components/MessageLog';
 import { Notice } from '../components/Notice';
 import { Spinner } from '../components/Spinner';
 import { Ticket } from '../components/Ticket';
@@ -33,7 +32,7 @@ export function AppointmentPage() {
       .catch((e: unknown) => {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 401) {
-          // Session expired or was for a different booking — send them back to verify again.
+          // Session expired or was for a different booking, so send them back to verify again.
           clearAppointmentToken(reference);
           navigate(`/appointments?reference=${encodeURIComponent(reference)}`, { replace: true });
         } else if (e instanceof ApiError && (e.status === 404 || e.status === 400)) {
@@ -82,7 +81,7 @@ export function AppointmentPage() {
     );
   }
 
-  const { appointment, notifications } = data;
+  const { appointment } = data;
   const isConfirmed = appointment.status === 'CONFIRMED';
 
   return (
@@ -139,8 +138,6 @@ export function AppointmentPage() {
           )}
         </div>
       </div>
-
-      <MessageLog notifications={notifications} />
     </div>
   );
 }

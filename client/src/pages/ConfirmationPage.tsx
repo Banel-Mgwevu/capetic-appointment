@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { MessageLog } from '../components/MessageLog';
 import { Notice } from '../components/Notice';
 import { Spinner } from '../components/Spinner';
 import { Ticket } from '../components/Ticket';
@@ -62,7 +61,7 @@ export function ConfirmationPage() {
     );
   }
 
-  const { appointment, notifications } = data;
+  const { appointment } = data;
 
   return (
     <div className="page page--confirmation">
@@ -89,7 +88,7 @@ export function ConfirmationPage() {
             <ul className="checklist">
               <li>Arrive about 5 minutes early.</li>
               <li>Bring your ID document.</li>
-              <li>Bring anything the service needs — for example proof of address for a new account.</li>
+              <li>Bring anything the service needs, such as proof of address for a new account.</li>
             </ul>
           </section>
           <div className="confirmation__actions">
@@ -102,8 +101,6 @@ export function ConfirmationPage() {
           </div>
         </div>
       </div>
-
-      <MessageLog notifications={notifications} />
     </div>
   );
 }

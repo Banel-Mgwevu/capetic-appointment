@@ -61,7 +61,7 @@ Server tests run against an in-memory SQLite database with a fixed clock, so the
 2. Picks a **branch**. Each branch has opening hours per weekday, a slot granularity (30 min) and a capacity (number of consultants).
 3. Picks a **date** and sees a grid of times. Unavailable slots are shown but disabled.
 4. Enters **their details** (name, email, SA mobile number, optional SA ID number, optional notes) and confirms.
-5. Receives a **reference** (`APT-XXXXXX`) and sees the confirmation email and SMS that were "sent". The reference can be used on the *Find a booking* page to view or cancel the appointment; cancelling releases the slot and sends a cancellation notice.
+5. Receives a **reference** (`APT-XXXXXX`) and a confirmation screen. The reference can be used on the *Find a booking* page to view or cancel the appointment; cancelling releases the slot and sends a cancellation notice.
 
 ### Availability rules
 
@@ -84,7 +84,7 @@ The availability check and the insert run inside a single SQLite transaction. be
 
 ### Confirmation
 
-`AppointmentService` depends on a `Notifier` interface. The provided `SimulatedNotifier` persists each message to the `notifications` table with status `SENT` and logs it. That gives an auditable record of exactly what the customer would have received, which the UI displays. Swapping in a real email/SMS gateway means implementing `Notifier` and wiring it in `createApp`; nothing else changes.
+`AppointmentService` depends on a `Notifier` interface. The provided `SimulatedNotifier` persists each message to the `notifications` table with status `SENT` and logs it, and it's returned in the booking/lookup API response (`notifications: [...]`) so it can be inspected via the API even though the current UI doesn't render it. That gives an auditable record of exactly what the customer would have received. Swapping in a real email/SMS gateway means implementing `Notifier` and wiring it in `createApp`; nothing else changes.
 
 Delivery failures do not fail the booking: the appointment is already committed and the customer has their reference on screen.
 
@@ -175,7 +175,7 @@ server/
 client/
   src/
     pages/                # Booking wizard, confirmation, find, manage
-    components/           # Ticket, SlotGrid, Stepper, Field, MessageLog, Notice
+    components/           # Ticket, SlotGrid, Stepper, Field, Notice, Skeleton, Spinner, BarList
     lib/                  # typed API client, date helpers, client-side validation
 Dockerfile                # multi-stage build → single runtime image
 docker-compose.yml
