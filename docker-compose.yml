@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    image: branch-appointment-booking:latest
+    ports:
+      - "3000:3000"
+    environment:
+      LOG_LEVEL: info
+      BOOKING_HORIZON_DAYS: 30
+      BOOKING_MIN_LEAD_MINUTES: 30
+    volumes:
+      - appointments-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  appointments-data:

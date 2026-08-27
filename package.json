@@ -1,0 +1,25 @@
+{
+  "name": "branch-appointment-booking",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-stack branch appointment booking system (Node.js/TypeScript, Express, SQLite, React)",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client && npm run build -w server",
+    "start": "node server/dist/index.js",
+    "test": "npm run test -w server && npm run test -w client",
+    "lint": "npm run lint -w server && npm run lint -w client",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
+    "check": "npm run lint && npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
