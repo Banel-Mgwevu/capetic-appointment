@@ -31,6 +31,8 @@
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgba(13, 34, 51, 0.06), 0 8px 24px -12px rgba(13, 34, 51, 0.28);
+  --paper: #fffdf7;
+  --paper-shadow: 0 2px 3px rgba(13, 34, 51, 0.08), 0 18px 32px -16px rgba(13, 34, 51, 0.32);
   --max-width: 1080px;
 }
 
@@ -499,11 +501,11 @@ button.stepper__button:hover {
    ------------------------------------------------------------------ */
 .ticket {
   --notch: 14px;
-  background: var(--surface);
-  border-radius: var(--radius);
+  background: var(--paper);
+  border-radius: var(--radius) var(--radius) 0 0;
   box-shadow: var(--shadow);
   position: relative;
-  overflow: hidden;
+  transition: box-shadow 0.25s ease;
 }
 .ticket::before {
   content: '';
@@ -512,10 +514,20 @@ button.stepper__button:hover {
   left: 0;
   right: 0;
   height: 4px;
+  border-radius: var(--radius) var(--radius) 0 0;
   background: linear-gradient(90deg, var(--brand-navy) 0%, var(--brand-navy) 60%, var(--brand-red) 100%);
 }
 .ticket--cancelled::before {
   background: var(--line-strong);
+}
+
+/* Once a reference is issued the summary "becomes" a printed slip: a faint
+   tilt and heavier shadow, as though it's just come off the printer and been
+   set down, rather than a form still sitting flush in a sidebar. */
+.ticket--confirmed,
+.ticket--cancelled {
+  box-shadow: var(--paper-shadow);
+  transform: rotate(-0.4deg);
 }
 
 .ticket__head {
@@ -583,11 +595,11 @@ button.stepper__button:hover {
   }
 }
 
-/* Perforated tear line with side notches */
+/* Perforated tear line with side notches, punched into the page background */
 .ticket__tear {
   position: relative;
   height: 0;
-  border-top: 2px dashed var(--line);
+  border-top: 2px dashed var(--line-strong);
   margin: 0 var(--notch);
 }
 .ticket__tear::before,
@@ -611,7 +623,7 @@ button.stepper__button:hover {
   margin: 0;
   padding: 14px 20px 6px;
   display: grid;
-  gap: 12px;
+  gap: 0;
 }
 
 .ticket__row {
@@ -619,9 +631,15 @@ button.stepper__button:hover {
   grid-template-columns: 64px 1fr;
   gap: 10px;
   align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.ticket__row:last-child {
+  border-bottom: 0;
 }
 .ticket__row dt {
-  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-3);
@@ -662,14 +680,57 @@ button.stepper__button:hover {
 }
 
 .ticket__foot {
-  margin: 8px 20px 18px;
+  margin: 8px 20px 0;
   padding-top: 12px;
-  border-top: 1px solid var(--line);
+  border-top: 1px dashed var(--line);
   color: var(--ink-2);
   font-size: 0.88rem;
 }
 .ticket--draft .ticket__rows {
   padding-bottom: 18px;
+}
+
+/* Barcode + caption, printed at the bottom of an issued slip only */
+.ticket__slip-footer {
+  padding: 16px 20px 18px;
+  text-align: center;
+}
+.ticket__barcode {
+  height: 34px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--ink) 0,
+    var(--ink) 2px,
+    transparent 2px,
+    transparent 4px,
+    var(--ink) 4px,
+    var(--ink) 5px,
+    transparent 5px,
+    transparent 9px,
+    var(--ink) 9px,
+    var(--ink) 12px,
+    transparent 12px,
+    transparent 14px
+  );
+  opacity: 0.82;
+}
+.ticket__slip-caption {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+/* Torn zigzag edge along the bottom of an issued slip, as though torn off a pad */
+.ticket__torn-edge {
+  height: 12px;
+  margin-top: -1px;
+  background-image: linear-gradient(-45deg, var(--bg) 6px, transparent 0), linear-gradient(45deg, var(--bg) 6px, transparent 0);
+  background-position: left bottom;
+  background-size: 12px 12px;
+  background-repeat: repeat-x;
 }
 
 /* ------------------------------------------------------------------

@@ -13,8 +13,9 @@ export interface TicketProps {
 }
 
 /**
- * The booking summary styled as a branch queue ticket. During the booking flow
- * it fills in row by row; once confirmed it carries the reference and a stamp.
+ * The booking summary styled as a printed branch slip. During the booking
+ * flow it fills in row by row like a form; once confirmed it becomes a torn,
+ * stamped paper slip with a reference and a decorative barcode footer.
  */
 export function Ticket({ service, branch, slot, customerName, reference, status, onEdit }: TicketProps) {
   const rows: { key: 'service' | 'branch' | 'time'; label: string; value: string | null; hint?: string }[] = [
@@ -24,9 +25,11 @@ export function Ticket({ service, branch, slot, customerName, reference, status,
       key: 'time',
       label: 'When',
       value: slot ? formatLongDate(slot.startsAt) : null,
-      hint: slot ? `${formatTime(slot.startsAt)} – ${formatTime(slot.endsAt)}` : undefined,
+      hint: slot ? `${formatTime(slot.startsAt)}-${formatTime(slot.endsAt)}` : undefined,
     },
   ];
+
+  const isIssued = Boolean(reference);
 
   return (
     <aside className={`ticket ticket--${status?.toLowerCase() ?? 'draft'}`} aria-label="Appointment summary">
@@ -77,7 +80,16 @@ export function Ticket({ service, branch, slot, customerName, reference, status,
         )}
       </dl>
 
-      {branch && reference && <p className="ticket__foot">{branch.address}</p>}
+      {branch && isIssued && <p className="ticket__foot">{branch.address}</p>}
+
+      {isIssued && (
+        <div className="ticket__slip-footer">
+          <div className="ticket__barcode" aria-hidden="true" />
+          <p className="ticket__slip-caption">Customer copy · keep for your records</p>
+        </div>
+      )}
+
+      {isIssued && <div className="ticket__torn-edge" aria-hidden="true" />}
     </aside>
   );
 }

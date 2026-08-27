@@ -51,7 +51,7 @@ describe('Ticket', () => {
     expect(screen.getByText('APT-7K3M9Q')).toBeInTheDocument();
     expect(screen.getByText('Confirmed')).toBeInTheDocument();
     expect(screen.getByText('Thursday 3 Sep 2026')).toBeInTheDocument();
-    expect(screen.getByText('09:00 – 09:30')).toBeInTheDocument();
+    expect(screen.getByText('09:00-09:30')).toBeInTheDocument();
     expect(screen.getByText('83 Rivonia Rd')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument();
   });
