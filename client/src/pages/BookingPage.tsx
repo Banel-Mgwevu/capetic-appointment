@@ -6,6 +6,7 @@ import { SlotGrid } from '../components/SlotGrid';
 import { Stepper, type StepDefinition } from '../components/Stepper';
 import { Ticket } from '../components/Ticket';
 import { api, ApiError } from '../lib/api';
+import { storeAppointmentToken } from '../lib/session';
 import { addDays, describeHours, formatLongDate, isOpenOn, nextOpenDate, todayAt } from '../lib/dates';
 import type { Branch, CustomerInput, DayAvailability, Service, Slot } from '../lib/types';
 import { validateCustomer } from '../lib/validation';
@@ -34,6 +35,7 @@ export function BookingPage() {
   const [reachable, setReachable] = useState(0);
   const [service, setService] = useState<Service>();
   const [branch, setBranch] = useState<Branch>();
+  const [branchQuery, setBranchQuery] = useState('');
   const [date, setDate] = useState<string>();
   const [slot, setSlot] = useState<Slot>();
   const [customer, setCustomer] = useState<CustomerInput>(EMPTY_CUSTOMER);
@@ -90,6 +92,14 @@ export function BookingPage() {
       cancelled = true;
     };
   }, [availabilityKey, branch, service, date]);
+
+  const filteredBranches = useMemo(() => {
+    const query = branchQuery.trim().toLowerCase();
+    if (!query) return branches;
+    return branches.filter((b) =>
+      [b.name, b.city, b.address].some((field) => field.toLowerCase().includes(query)),
+    );
+  }, [branches, branchQuery]);
 
   const today = useMemo(() => todayAt(branch?.timezone ?? 'Africa/Johannesburg'), [branch]);
   const lastBookableDate = useMemo(() => addDays(today, HORIZON_DAYS), [today]);
@@ -153,6 +163,7 @@ export function BookingPage() {
         },
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
+      if (result.access) storeAppointmentToken(result.appointment.reference, result.access.token);
       navigate(`/confirmation/${result.appointment.reference}`, { state: result, replace: false });
     } catch (error) {
       if (error instanceof ApiError && error.code === 'SLOT_UNAVAILABLE') {
@@ -228,24 +239,42 @@ export function BookingPage() {
               <h1 id="step-branch" className="step__title">
                 Which branch suits you?
               </h1>
-              <ul className="choices">
-                {branches.map((b) => (
-                  <li key={b.id}>
-                    <button
-                      type="button"
-                      className={`choice ${b.id === branch?.id ? 'choice--selected' : ''}`}
-                      aria-pressed={b.id === branch?.id}
-                      onClick={() => chooseBranch(b)}
-                    >
-                      <span className="choice__title">
-                        {b.name} <span className="choice__city">{b.city}</span>
-                      </span>
-                      <span className="choice__body">{b.address}</span>
-                      <span className="choice__meta">{describeHours(b)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="search">
+                <svg className="search__icon" aria-hidden="true" viewBox="0 0 20 20" fill="none">
+                  <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M14 14L18 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="search"
+                  className="search__input"
+                  placeholder="Search by branch name, suburb or city"
+                  aria-label="Search branches"
+                  value={branchQuery}
+                  onChange={(e) => setBranchQuery(e.target.value)}
+                />
+              </div>
+              {branches.length > 0 && filteredBranches.length === 0 ? (
+                <p className="muted">No branches match "{branchQuery}". Try a different suburb or city.</p>
+              ) : (
+                <ul className="choices">
+                  {filteredBranches.map((b) => (
+                    <li key={b.id}>
+                      <button
+                        type="button"
+                        className={`choice ${b.id === branch?.id ? 'choice--selected' : ''}`}
+                        aria-pressed={b.id === branch?.id}
+                        onClick={() => chooseBranch(b)}
+                      >
+                        <span className="choice__title">
+                          {b.name} <span className="choice__city">{b.city}</span>
+                        </span>
+                        <span className="choice__body">{b.address}</span>
+                        <span className="choice__meta">{describeHours(b)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
 

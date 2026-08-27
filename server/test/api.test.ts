@@ -199,29 +199,86 @@ describe('POST /api/appointments', () => {
   });
 });
 
-describe('GET /api/appointments/:reference', () => {
-  it('returns the booking with its notification history', async () => {
+describe('POST /api/appointments/:reference/access', () => {
+  it('issues a token when the email or phone matches', async () => {
     const { reference } = (await book()).body.appointment;
 
-    const res = await request(ctx.app).get(`/api/appointments/${reference.toLowerCase()}`);
+    const byEmail = await request(ctx.app).post(`/api/appointments/${reference}/access`).send({ contact: customer.email });
+    expect(byEmail.status).toBe(200);
+    expect(byEmail.body.token).toEqual(expect.any(String));
+
+    const byPhone = await request(ctx.app)
+      .post(`/api/appointments/${reference}/access`)
+      .send({ contact: '+27825550123' });
+    expect(byPhone.status).toBe(200);
+  });
+
+  it('rejects a non-matching contact', async () => {
+    const { reference } = (await book()).body.appointment;
+    const res = await request(ctx.app).post(`/api/appointments/${reference}/access`).send({ contact: 'someone-else@example.com' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('VERIFICATION_FAILED');
+  });
+
+  it('404s for an unknown reference', async () => {
+    const res = await request(ctx.app).post('/api/appointments/APT-ZZZZZZ/access').send({ contact: customer.email });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /api/appointments/:reference', () => {
+  it('returns the booking with its notification history using the token issued at booking', async () => {
+    const booked = (await book()).body;
+    const { reference } = booked.appointment;
+
+    const res = await request(ctx.app)
+      .get(`/api/appointments/${reference.toLowerCase()}`)
+      .set('Authorization', `Bearer ${booked.access.token}`);
     expect(res.status).toBe(200);
     expect(res.body.appointment.reference).toBe(reference);
     expect(res.body.notifications).toHaveLength(2);
   });
 
-  it('404s for unknown and malformed references', async () => {
-    expect((await request(ctx.app).get('/api/appointments/APT-ZZZZZZ')).status).toBe(404);
+  it('returns the booking after verifying by email instead', async () => {
+    const { reference } = (await book()).body.appointment;
+    const { token } = (await request(ctx.app).post(`/api/appointments/${reference}/access`).send({ contact: customer.email })).body;
+
+    const res = await request(ctx.app).get(`/api/appointments/${reference}`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects requests with no token, a bad token, or a token for a different booking', async () => {
+    const first = (await book()).body;
+    const second = (await book({ startsAt: `${TOMORROW}T10:00` })).body;
+
+    expect((await request(ctx.app).get(`/api/appointments/${first.appointment.reference}`)).status).toBe(401);
+    expect(
+      (await request(ctx.app).get(`/api/appointments/${first.appointment.reference}`).set('Authorization', 'Bearer nonsense')).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(ctx.app)
+          .get(`/api/appointments/${first.appointment.reference}`)
+          .set('Authorization', `Bearer ${second.access.token}`)
+      ).status,
+    ).toBe(401);
+  });
+
+  it('400s for a malformed reference', async () => {
     expect((await request(ctx.app).get('/api/appointments/nope')).status).toBe(400);
   });
 });
 
 describe('POST /api/appointments/:reference/cancel', () => {
   it('cancels, releases the slot and simulates a cancellation notice', async () => {
-    const { reference } = (await book()).body.appointment;
+    const booked = (await book()).body;
+    const { reference } = booked.appointment;
     await book();
     expect((await book()).status).toBe(409);
 
-    const res = await request(ctx.app).post(`/api/appointments/${reference}/cancel`);
+    const res = await request(ctx.app)
+      .post(`/api/appointments/${reference}/cancel`)
+      .set('Authorization', `Bearer ${booked.access.token}`);
     expect(res.status).toBe(200);
     expect(res.body.appointment.status).toBe('CANCELLED');
     expect(res.body.appointment.cancelledAt).toBe(ctx.now.toISOString());
@@ -231,24 +288,30 @@ describe('POST /api/appointments/:reference/cancel', () => {
     expect((await book()).status).toBe(201);
   });
 
-  it('cannot cancel twice', async () => {
+  it('cannot cancel without a valid token for that booking', async () => {
     const { reference } = (await book()).body.appointment;
-    await request(ctx.app).post(`/api/appointments/${reference}/cancel`);
-    const again = await request(ctx.app).post(`/api/appointments/${reference}/cancel`);
+    expect((await request(ctx.app).post(`/api/appointments/${reference}/cancel`)).status).toBe(401);
+  });
+
+  it('cannot cancel twice', async () => {
+    const booked = (await book()).body;
+    const { reference } = booked.appointment;
+    const auth = { Authorization: `Bearer ${booked.access.token}` };
+    await request(ctx.app).post(`/api/appointments/${reference}/cancel`).set(auth);
+    const again = await request(ctx.app).post(`/api/appointments/${reference}/cancel`).set(auth);
     expect(again.status).toBe(409);
     expect(again.body.error.code).toBe('ALREADY_CANCELLED');
   });
 
   it('cannot cancel an appointment that has already started', async () => {
-    const { reference } = (await book()).body.appointment;
+    const booked = (await book()).body;
+    const { reference } = booked.appointment;
     ctx.now = new Date('2026-09-03T07:30:00Z'); // 09:30 local, appointment began at 09:00
-    const res = await request(ctx.app).post(`/api/appointments/${reference}/cancel`);
+    const res = await request(ctx.app)
+      .post(`/api/appointments/${reference}/cancel`)
+      .set('Authorization', `Bearer ${booked.access.token}`);
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('APPOINTMENT_IN_PAST');
-  });
-
-  it('404s for unknown references', async () => {
-    expect((await request(ctx.app).post('/api/appointments/APT-ZZZZZZ/cancel')).status).toBe(404);
   });
 });
 
@@ -257,5 +320,55 @@ describe('unknown API routes', () => {
     const res = await request(ctx.app).get('/api/nothing');
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+});
+
+describe('POST /api/auth/login', () => {
+  it('issues an admin token for correct credentials', async () => {
+    const res = await request(ctx.app).post('/api/auth/login').send({ username: 'admin', password: 'test-admin-password' });
+    expect(res.status).toBe(200);
+    expect(res.body.token).toEqual(expect.any(String));
+  });
+
+  it('rejects wrong credentials', async () => {
+    const res = await request(ctx.app).post('/api/auth/login').send({ username: 'admin', password: 'wrong' });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /api/analytics/summary', () => {
+  const adminLogin = async () =>
+    (await request(ctx.app).post('/api/auth/login').send({ username: 'admin', password: 'test-admin-password' })).body
+      .token as string;
+
+  it('requires an admin token', async () => {
+    expect((await request(ctx.app).get('/api/analytics/summary')).status).toBe(401);
+    // A customer token must not work here.
+    const booked = (await book()).body;
+    expect(
+      (await request(ctx.app).get('/api/analytics/summary').set('Authorization', `Bearer ${booked.access.token}`)).status,
+    ).toBe(401);
+  });
+
+  it('summarises bookings for an admin', async () => {
+    await book();
+    const second = (await book({ startsAt: `${TOMORROW}T10:00` })).body;
+    await request(ctx.app)
+      .post(`/api/appointments/${second.appointment.reference}/cancel`)
+      .set('Authorization', `Bearer ${second.access.token}`);
+
+    const token = await adminLogin();
+    const res = await request(ctx.app).get('/api/analytics/summary').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.totals).toMatchObject({ confirmed: 1, cancelled: 1, total: 2, cancellationRate: 50 });
+    expect(res.body.byBranch.find((b: { branchId: number }) => b.branchId === ROSEBANK)).toMatchObject({ confirmed: 1, cancelled: 1 });
+    expect(res.body.busiestService).toBe('Open a new account');
+  });
+
+  it('accepts a custom range', async () => {
+    const token = await adminLogin();
+    const res = await request(ctx.app).get('/api/analytics/summary').query({ rangeDays: 7 }).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.rangeDays).toBe(7);
   });
 });

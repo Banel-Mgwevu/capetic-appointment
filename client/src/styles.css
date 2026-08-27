@@ -868,3 +868,163 @@ button.stepper__button:hover {
   display: inline-block;
   max-width: 34ch;
 }
+
+/* ------------------------------------------------------------------
+   Branch search
+   ------------------------------------------------------------------ */
+.search {
+  position: relative;
+  margin-bottom: 18px;
+  max-width: 420px;
+}
+.search__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.search__input {
+  width: 100%;
+  padding: 10px 12px 10px 38px;
+  min-height: 44px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+.search__input:focus-visible {
+  border-color: var(--focus);
+}
+.search__input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------
+   Analytics dashboard
+   ------------------------------------------------------------------ */
+.analytics__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.analytics__controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--surface);
+}
+.segmented__option {
+  border: 0;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.segmented__option--active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: grid;
+  gap: 6px;
+}
+.stat-card__label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.stat-card__value {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.analytics__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.barlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.barlist__row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.9rem;
+}
+.barlist__label {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.barlist__track {
+  position: relative;
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+}
+.barlist__bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px 0 0 999px;
+}
+.barlist__bar--secondary {
+  background: var(--danger);
+  opacity: 0.55;
+}
+.barlist__value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.barlist__secondary {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.masthead__staff {
+  margin-left: 4px;
+  color: var(--ink-3) !important;
+  font-size: 0.85rem;
+}

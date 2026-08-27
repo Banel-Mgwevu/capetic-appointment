@@ -88,6 +88,16 @@ The availability check and the insert run inside a single SQLite transaction. be
 
 Delivery failures do not fail the booking: the appointment is already committed and the customer has their reference on screen.
 
+## Signing in to a booking (customer) and staff analytics
+
+There are no customer accounts. Instead:
+
+- **Booking lookup** requires proving you know the reference *and* the email or phone on the booking (`POST /appointments/:reference/access`). A correct match returns a signed, 30-minute access token; the frontend stores it in `sessionStorage` and sends it as `Authorization: Bearer <token>` on every request for that booking. Right after you book, a token is issued automatically so you land on your confirmation page without a separate sign-in step.
+- **Branch search** on the "Which branch suits you?" step is a client-side filter over name, suburb and city -- there is no separate search endpoint, since the branch list is already small and fully returned.
+- **Staff analytics** (`/admin/analytics`) is protected separately: sign in at `/admin/login` with `ADMIN_USERNAME` / `ADMIN_PASSWORD` (see Configuration) to get an 8-hour admin token, then view booking totals, per-branch and per-service breakdowns, a day-by-day trend, and the busiest hour, over a 7/30/90-day range.
+
+Both token kinds are short, self-contained, HMAC-signed strings (`domain/token.ts`) rather than a session store or JWT library -- enough for this project's needs without adding a dependency or a stateful session table. See *Production considerations* below for what a real deployment would add on top.
+
 ## API
 
 All endpoints are under `/api` and return JSON. Errors have the shape `{ "error": { "code", "message", "details?" } }`.
@@ -98,9 +108,12 @@ All endpoints are under `/api` and return JSON. Errors have the shape `{ "error"
 | `GET` | `/branches` | Branches with address, timezone, capacity and opening hours |
 | `GET` | `/services` | Services with duration |
 | `GET` | `/branches/:id/availability?serviceId=&date=YYYY-MM-DD` | Slot grid for one day |
-| `POST` | `/appointments` | Book. Returns `201` with the appointment and the notifications sent |
-| `GET` | `/appointments/:reference` | Appointment details and notification history |
-| `POST` | `/appointments/:reference/cancel` | Cancel a confirmed appointment |
+| `POST` | `/appointments` | Book. Returns `201` with the appointment, notifications, and a 30-minute `access` token for it |
+| `POST` | `/appointments/:reference/access` | "Sign in" to a booking with its email or phone. Returns a 30-minute access token |
+| `GET` | `/appointments/:reference` | Appointment details. Requires `Authorization: Bearer <access token>` |
+| `POST` | `/appointments/:reference/cancel` | Cancel a confirmed appointment. Requires the access token |
+| `POST` | `/auth/login` | Admin sign-in (`username`, `password`). Returns an 8-hour admin token |
+| `GET` | `/analytics/summary?rangeDays=30` | Booking totals, per-branch/service/day/hour breakdowns. Requires `Authorization: Bearer <admin token>` |
 
 Example booking:
 
@@ -115,7 +128,7 @@ curl -X POST http://localhost:3000/api/appointments \
   }'
 ```
 
-Error codes you will see: `VALIDATION_ERROR` (400, with per-field `details`), `NOT_FOUND` (404), `SLOT_UNAVAILABLE`, `ALREADY_CANCELLED`, `APPOINTMENT_IN_PAST` (409), `RATE_LIMITED` (429).
+Error codes you will see: `VALIDATION_ERROR` (400, with per-field `details`), `NOT_FOUND` (404), `UNAUTHENTICATED` (401), `SLOT_UNAVAILABLE`, `VERIFICATION_FAILED`, `ALREADY_CANCELLED`, `APPOINTMENT_IN_PAST` (409), `RATE_LIMITED` (429).
 
 The customer's ID number is stored but never returned by the API.
 
@@ -130,6 +143,8 @@ The customer's ID number is stored but never returned by the API.
 | `STATIC_DIR` | unset | Directory of the built web app to serve; unset = API only |
 | `BOOKING_HORIZON_DAYS` | `30` | How far ahead bookings are accepted |
 | `BOOKING_MIN_LEAD_MINUTES` | `30` | Minimum notice before a slot |
+| `AUTH_SECRET` | dev default | HMAC signing key for customer-access and admin tokens. **Set a real random value in production.** |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / `changeme123` | Staff sign-in for `/admin/analytics`. **Change both before deploying.** |
 
 Configuration is validated at startup; the process exits with a clear message if a value is invalid.
 

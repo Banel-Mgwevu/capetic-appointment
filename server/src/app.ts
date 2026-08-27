@@ -8,16 +8,21 @@ import { pinoHttp } from 'pino-http';
 import type { Config } from './config.js';
 import type { Db } from './db/connection.js';
 import type { Logger } from './logger.js';
+import { AnalyticsRepository } from './repositories/analyticsRepository.js';
 import { AppointmentRepository } from './repositories/appointmentRepository.js';
 import { BranchRepository } from './repositories/branchRepository.js';
 import { NotificationRepository } from './repositories/notificationRepository.js';
 import { ServiceRepository } from './repositories/serviceRepository.js';
+import { AnalyticsService } from './services/analyticsService.js';
 import { AppointmentService } from './services/appointmentService.js';
+import { AuthService } from './services/authService.js';
 import { AvailabilityService } from './services/availabilityService.js';
 import type { Notifier } from './services/notifications/notifier.js';
 import { SimulatedNotifier } from './services/notifications/simulatedNotifier.js';
 import { errorHandler, notFoundHandler } from './http/middleware/errorHandler.js';
+import { analyticsRouter } from './http/routes/analytics.js';
 import { appointmentsRouter } from './http/routes/appointments.js';
+import { authRouter } from './http/routes/auth.js';
 import { healthRouter } from './http/routes/health.js';
 import { referenceDataRouter } from './http/routes/referenceData.js';
 
@@ -36,6 +41,15 @@ export function createApp({ config, db, logger, notifier, clock = () => new Date
   const services = new ServiceRepository(db);
   const appointmentRepo = new AppointmentRepository(db);
   const notificationRepo = new NotificationRepository(db);
+  const analyticsRepo = new AnalyticsRepository(db);
+
+  const auth = new AuthService({
+    appointments: appointmentRepo,
+    secret: config.AUTH_SECRET,
+    adminUsername: config.ADMIN_USERNAME,
+    adminPassword: config.ADMIN_PASSWORD,
+  });
+  const analytics = new AnalyticsService(analyticsRepo, clock);
 
   const policy = { horizonDays: config.BOOKING_HORIZON_DAYS, minLeadMinutes: config.BOOKING_MIN_LEAD_MINUTES };
   const availability = new AvailabilityService({ branches, services, appointments: appointmentRepo, policy, clock });
@@ -99,7 +113,9 @@ export function createApp({ config, db, logger, notifier, clock = () => new Date
   const api = express.Router();
   api.use(healthRouter(db));
   api.use(referenceDataRouter({ branches, services, availability }));
-  api.use(appointmentsRouter({ appointments, rateLimiting: config.NODE_ENV !== 'test' }));
+  api.use(appointmentsRouter({ appointments, auth, rateLimiting: config.NODE_ENV !== 'test' }));
+  api.use(authRouter({ auth, rateLimiting: config.NODE_ENV !== 'test' }));
+  api.use(analyticsRouter({ analytics, auth }));
   api.use(notFoundHandler);
   app.use('/api', api);
 

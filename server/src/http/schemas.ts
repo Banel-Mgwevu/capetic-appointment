@@ -55,3 +55,16 @@ export const bookingBody = z.object({
 });
 
 export type BookingBody = z.infer<typeof bookingBody>;
+
+export const accessBody = z.object({
+  contact: z.string().trim().min(3, 'Enter the email or phone number on the booking').max(254),
+});
+
+export const adminLoginBody = z.object({
+  username: z.string().trim().min(1),
+  password: z.string().min(1),
+});
+
+export const analyticsQuery = z.object({
+  rangeDays: z.coerce.number().int().min(1).max(365).default(30),
+});

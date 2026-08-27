@@ -16,6 +16,11 @@ const configSchema = z.object({
   STATIC_DIR: z.string().optional(),
   BOOKING_HORIZON_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   BOOKING_MIN_LEAD_MINUTES: z.coerce.number().int().min(0).max(24 * 60).default(30),
+  /** Secret used to sign customer-access and admin session tokens. */
+  AUTH_SECRET: z.string().min(16).default('dev-only-secret-change-me-please-32chars'),
+  ADMIN_USERNAME: z.string().min(1).default('admin'),
+  /** Plaintext only for this exercise; a real deployment would store a hash. */
+  ADMIN_PASSWORD: z.string().min(1).default('changeme123'),
 });
 
 export type Config = z.infer<typeof configSchema>;

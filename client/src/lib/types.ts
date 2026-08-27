@@ -69,6 +69,8 @@ export interface NotificationRecord {
 export interface AppointmentResponse {
   appointment: Appointment;
   notifications: NotificationRecord[];
+  /** Only present on the response to a fresh booking */
+  access?: AccessGrant;
 }
 
 export interface CustomerInput {
@@ -76,6 +78,24 @@ export interface CustomerInput {
   email: string;
   phone: string;
   idNumber?: string;
+}
+
+export interface AccessGrant {
+  token: string;
+  expiresInSeconds: number;
+}
+
+export interface AnalyticsSummary {
+  rangeDays: number;
+  since: string;
+  totals: { confirmed: number; cancelled: number; total: number; cancellationRate: number };
+  byBranch: { branchId: number; branchName: string; confirmed: number; cancelled: number }[];
+  byService: { serviceId: number; serviceName: string; confirmed: number }[];
+  byDay: { date: string; confirmed: number; cancelled: number }[];
+  byHour: { hour: string; confirmed: number }[];
+  busiestBranch: string | null;
+  busiestService: string | null;
+  busiestHour: string | null;
 }
 
 export interface BookingInput {

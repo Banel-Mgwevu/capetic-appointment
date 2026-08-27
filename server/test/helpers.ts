@@ -22,6 +22,9 @@ export function createTestContext(overrides: Partial<Record<string, string>> = {
     NODE_ENV: 'test',
     DATABASE_PATH: ':memory:',
     LOG_LEVEL: 'silent',
+    AUTH_SECRET: 'test-only-secret-not-for-production-use',
+    ADMIN_USERNAME: 'admin',
+    ADMIN_PASSWORD: 'test-admin-password',
     ...overrides,
   });
   const db = openDatabase(':memory:');
