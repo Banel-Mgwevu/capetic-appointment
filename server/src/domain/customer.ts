@@ -32,3 +32,21 @@ export function isValidSouthAfricanId(id: string): boolean {
   }
   return sum % 10 === 0;
 }
+
+/**
+ * Normalises a customer-supplied "email or phone" for comparison purposes:
+ * emails are lower-cased and trimmed; phone-shaped input is passed through
+ * `normalisePhone`. Used both for booking-access verification and the
+ * "my appointments" lookup, so the same value always compares equal to
+ * itself regardless of how the customer typed it.
+ */
+export function normaliseContact(input: string): string {
+  const trimmed = input.trim();
+  const asPhone = normalisePhone(trimmed);
+  if (asPhone) return asPhone;
+  return trimmed.toLowerCase().replace(/[\s()-]/g, '');
+}
+
+export function contactChannel(normalisedContact: string): 'EMAIL' | 'SMS' {
+  return normalisedContact.startsWith('+') ? 'SMS' : 'EMAIL';
+}

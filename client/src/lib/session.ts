@@ -29,3 +29,17 @@ export function getAdminToken(): string | null {
 export function clearAdminToken(): void {
   sessionStorage.removeItem(ADMIN_KEY);
 }
+
+const CONTACT_KEY = 'booking:contact-token';
+
+export function storeContactToken(token: string): void {
+  sessionStorage.setItem(CONTACT_KEY, token);
+}
+
+export function getContactToken(): string | null {
+  return sessionStorage.getItem(CONTACT_KEY);
+}
+
+export function clearContactToken(): void {
+  sessionStorage.removeItem(CONTACT_KEY);
+}

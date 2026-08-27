@@ -22,7 +22,14 @@ beforeEach(() => {
 const book = (overrides: Record<string, unknown> = {}) =>
   request(ctx.app)
     .post('/api/appointments')
-    .send({ branchId: ROSEBANK, serviceId: OPEN_ACCOUNT, startsAt: `${TOMORROW}T09:00`, customer, ...overrides });
+    .send({
+      branchId: ROSEBANK,
+      serviceId: OPEN_ACCOUNT,
+      startsAt: `${TOMORROW}T09:00`,
+      customer,
+      consent: true,
+      ...overrides,
+    });
 
 describe('GET /api/health', () => {
   it('reports ok', async () => {
@@ -370,5 +377,246 @@ describe('GET /api/analytics/summary', () => {
     const res = await request(ctx.app).get('/api/analytics/summary').query({ rangeDays: 7 }).set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.rangeDays).toBe(7);
+  });
+});
+
+describe('booking consent', () => {
+  it('rejects a booking without explicit consent', async () => {
+    const res = await book({ consent: false });
+    expect(res.status).toBe(400);
+    const paths = res.body.error.details.map((d: { path: string }) => d.path);
+    expect(paths).toContain('consent');
+  });
+
+  it('rejects a booking with consent omitted entirely', async () => {
+    const res = await request(ctx.app)
+      .post('/api/appointments')
+      .send({ branchId: ROSEBANK, serviceId: OPEN_ACCOUNT, startsAt: `${TOMORROW}T09:00`, customer });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/appointments/:reference/reschedule', () => {
+  it('moves a confirmed appointment to a new time and notifies the customer', async () => {
+    const booked = (await book()).body;
+    const { reference } = booked.appointment;
+    const auth = { Authorization: `Bearer ${booked.access.token}` };
+
+    const res = await request(ctx.app)
+      .post(`/api/appointments/${reference}/reschedule`)
+      .set(auth)
+      .send({ startsAt: `${TOMORROW}T11:00` });
+
+    expect(res.status).toBe(200);
+    expect(res.body.appointment.startsAt).toBe(`${TOMORROW}T11:00`);
+    expect(res.body.appointment.rescheduleCount).toBe(1);
+    expect(res.body.appointment.rescheduledAt).toBe(ctx.now.toISOString());
+    expect(res.body.notifications).toHaveLength(4); // confirmation x2 + reschedule x2
+    expect(res.body.notifications[2].kind).toBe('RESCHEDULE');
+    expect(res.body.notifications[2].subject).toContain('moved');
+
+    // original slot is released
+    expect((await book({ startsAt: `${TOMORROW}T09:00` })).status).toBe(201);
+  });
+
+  it('re-checks capacity at the new time, excluding its own old slot', async () => {
+    const booked = (await book({ startsAt: `${TOMORROW}T09:00` })).body;
+    await book({ startsAt: `${TOMORROW}T09:00` }); // fills Rosebank's 2nd unit at 09:00
+    const auth = { Authorization: `Bearer ${booked.access.token}` };
+
+    // Moving within a slot that only its own old booking would have blocked must succeed.
+    const ok = await request(ctx.app)
+      .post(`/api/appointments/${booked.appointment.reference}/reschedule`)
+      .set(auth)
+      .send({ startsAt: `${TOMORROW}T09:30` });
+    expect(ok.status).toBe(200);
+  });
+
+  it('rejects moving to a fully booked time', async () => {
+    const booked = (await book({ startsAt: `${TOMORROW}T09:00` })).body;
+    await book({ startsAt: `${TOMORROW}T11:00` });
+    await book({ startsAt: `${TOMORROW}T11:00` });
+    const auth = { Authorization: `Bearer ${booked.access.token}` };
+
+    const res = await request(ctx.app)
+      .post(`/api/appointments/${booked.appointment.reference}/reschedule`)
+      .set(auth)
+      .send({ startsAt: `${TOMORROW}T11:00` });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('SLOT_UNAVAILABLE');
+  });
+
+  it('rejects rescheduling without a valid token', async () => {
+    const { reference } = (await book()).body.appointment;
+    const res = await request(ctx.app)
+      .post(`/api/appointments/${reference}/reschedule`)
+      .send({ startsAt: `${TOMORROW}T11:00` });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects rescheduling a cancelled appointment', async () => {
+    const booked = (await book()).body;
+    const auth = { Authorization: `Bearer ${booked.access.token}` };
+    await request(ctx.app).post(`/api/appointments/${booked.appointment.reference}/cancel`).set(auth);
+
+    const res = await request(ctx.app)
+      .post(`/api/appointments/${booked.appointment.reference}/reschedule`)
+      .set(auth)
+      .send({ startsAt: `${TOMORROW}T11:00` });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('ALREADY_CANCELLED');
+  });
+
+  it('rejects an appointment that has already started', async () => {
+    const booked = (await book()).body;
+    const auth = { Authorization: `Bearer ${booked.access.token}` };
+    ctx.now = new Date('2026-09-03T07:30:00Z'); // 09:30 local, appointment began at 09:00
+
+    const res = await request(ctx.app)
+      .post(`/api/appointments/${booked.appointment.reference}/reschedule`)
+      .set(auth)
+      .send({ startsAt: `${TOMORROW}T14:00` });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('APPOINTMENT_IN_PAST');
+  });
+});
+
+describe('customer OTP and "my appointments"', () => {
+  const requestCode = (contact: string) => request(ctx.app).post('/api/customers/otp/request').send({ contact });
+
+  it('always returns a generic response, whether or not the contact has bookings', async () => {
+    const withBookings = await requestCode(customer.email);
+    const withoutBookings = await requestCode('nobody@example.com');
+    expect(withBookings.status).toBe(200);
+    expect(withoutBookings.status).toBe(200);
+    expect(withBookings.body).toEqual(withoutBookings.body);
+  });
+
+  it('verifies the correct code and lists every booking for that contact', async () => {
+    const first = (await book()).body.appointment;
+    const second = (await book({ startsAt: `${TOMORROW}T13:00`, serviceId: CREDIT_CONSULTATION })).body.appointment;
+
+    const code = ctx.captureNextOtp(customer.email);
+    await requestCode(customer.email);
+
+    const verify = await request(ctx.app).post('/api/customers/otp/verify').send({ contact: customer.email, code: code() });
+    expect(verify.status).toBe(200);
+    expect(verify.body.token).toEqual(expect.any(String));
+
+    const list = await request(ctx.app)
+      .get('/api/customers/appointments')
+      .set('Authorization', `Bearer ${verify.body.token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.appointments).toHaveLength(2);
+    const references = list.body.appointments.map((a: { reference: string }) => a.reference);
+    expect(references).toEqual(expect.arrayContaining([first.reference, second.reference]));
+  });
+
+  it('rejects a wrong code and does not list appointments without verifying', async () => {
+    const code = ctx.captureNextOtp(customer.email);
+    await requestCode(customer.email);
+    code(); // consume/observe the real code without using it
+
+    const verify = await request(ctx.app)
+      .post('/api/customers/otp/verify')
+      .send({ contact: customer.email, code: '000000' });
+    expect(verify.status).toBe(409);
+    expect(verify.body.error.code).toBe('CODE_INVALID');
+
+    const list = await request(ctx.app).get('/api/customers/appointments');
+    expect(list.status).toBe(401);
+  });
+
+  it('a fresh code invalidates the previous one', async () => {
+    const codeA = ctx.captureNextOtp(customer.phone);
+    await requestCode(customer.phone);
+    const firstCode = codeA();
+
+    const codeB = ctx.captureNextOtp(customer.phone);
+    await requestCode(customer.phone);
+    codeB();
+
+    const verify = await request(ctx.app)
+      .post('/api/customers/otp/verify')
+      .send({ contact: customer.phone, code: firstCode });
+    expect(verify.status).toBe(409);
+  });
+});
+
+describe('admin support tools', () => {
+  const adminAuth = async () => {
+    const res = await request(ctx.app).post('/api/auth/login').send({ username: 'admin', password: 'test-admin-password' });
+    return { Authorization: `Bearer ${res.body.token as string}` };
+  };
+
+  it('lets staff look up a booking without the customer verifying, and logs it', async () => {
+    const { reference } = (await book()).body.appointment;
+    const auth = await adminAuth();
+
+    const res = await request(ctx.app).get(`/api/admin/appointments/${reference}`).set(auth);
+    expect(res.status).toBe(200);
+    expect(res.body.appointment.reference).toBe(reference);
+
+    const log = await request(ctx.app).get('/api/admin/audit-log').set(auth);
+    expect(log.status).toBe(200);
+    const lookup = log.body.entries.find((e: { action: string }) => e.action === 'APPOINTMENT_LOOKUP');
+    expect(lookup).toMatchObject({ actor: 'admin', targetType: 'appointment', targetId: reference });
+  });
+
+  it('records both a successful and a failed admin login', async () => {
+    await request(ctx.app).post('/api/auth/login').send({ username: 'admin', password: 'wrong' });
+    const auth = await adminAuth();
+
+    const log = await request(ctx.app).get('/api/admin/audit-log').set(auth);
+    const actions = log.body.entries.map((e: { action: string }) => e.action);
+    expect(actions).toContain('ADMIN_LOGIN_SUCCESS');
+    expect(actions).toContain('ADMIN_LOGIN_FAILURE');
+  });
+
+  it('lets staff cancel and reschedule a booking on a customer\u2019s behalf', async () => {
+    const { reference } = (await book()).body.appointment;
+    const auth = await adminAuth();
+
+    const rescheduled = await request(ctx.app)
+      .post(`/api/admin/appointments/${reference}/reschedule`)
+      .set(auth)
+      .send({ startsAt: `${TOMORROW}T11:00` });
+    expect(rescheduled.status).toBe(200);
+    expect(rescheduled.body.appointment.startsAt).toBe(`${TOMORROW}T11:00`);
+
+    const cancelled = await request(ctx.app).post(`/api/admin/appointments/${reference}/cancel`).set(auth);
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.appointment.status).toBe('CANCELLED');
+
+    const log = await request(ctx.app).get('/api/admin/audit-log').set(auth);
+    const actions = log.body.entries.map((e: { action: string }) => e.action);
+    expect(actions).toContain('APPOINTMENT_RESCHEDULED_BY_STAFF');
+    expect(actions).toContain('APPOINTMENT_CANCELLED_BY_STAFF');
+  });
+
+  it('rejects admin endpoints without a valid admin token', async () => {
+    const { reference } = (await book()).body.appointment;
+    expect((await request(ctx.app).get(`/api/admin/appointments/${reference}`)).status).toBe(401);
+    expect((await request(ctx.app).get('/api/admin/audit-log')).status).toBe(401);
+
+    const booked = (await book()).body;
+    expect(
+      (
+        await request(ctx.app)
+          .get(`/api/admin/appointments/${reference}`)
+          .set('Authorization', `Bearer ${booked.access.token}`) // a customer token must not work here
+      ).status,
+    ).toBe(401);
+  });
+
+  it('triggers a privacy purge and logs it', async () => {
+    const auth = await adminAuth();
+    const res = await request(ctx.app).post('/api/admin/privacy/purge').set(auth);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ redactedCount: expect.any(Number) });
+
+    const log = await request(ctx.app).get('/api/admin/audit-log').set(auth);
+    const entry = log.body.entries.find((e: { action: string }) => e.action === 'PRIVACY_PURGE_TRIGGERED');
+    expect(entry).toBeDefined();
   });
 });

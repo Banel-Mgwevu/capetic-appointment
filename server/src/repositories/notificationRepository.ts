@@ -1,10 +1,11 @@
 import type { Db } from '../db/connection.js';
-import type { Notification, NotificationChannel } from './types.js';
+import type { Notification, NotificationChannel, NotificationKind } from './types.js';
 
 interface NotificationRow {
   id: number;
   appointment_id: number;
   channel: NotificationChannel;
+  kind: NotificationKind;
   recipient: string;
   subject: string | null;
   body: string;
@@ -15,6 +16,7 @@ interface NotificationRow {
 export interface NewNotification {
   appointmentId: number;
   channel: NotificationChannel;
+  kind: NotificationKind;
   recipient: string;
   subject: string | null;
   body: string;
@@ -22,7 +24,7 @@ export interface NewNotification {
   createdAt: string;
 }
 
-const SELECT = `SELECT id, appointment_id, channel, recipient, subject, body, status, created_at FROM notifications`;
+const SELECT = `SELECT id, appointment_id, channel, kind, recipient, subject, body, status, created_at FROM notifications`;
 
 export class NotificationRepository {
   private readonly insertStmt;
@@ -30,8 +32,8 @@ export class NotificationRepository {
 
   constructor(db: Db) {
     this.insertStmt = db.prepare<NewNotification>(`
-      INSERT INTO notifications (appointment_id, channel, recipient, subject, body, status, created_at)
-      VALUES (@appointmentId, @channel, @recipient, @subject, @body, @status, @createdAt)`);
+      INSERT INTO notifications (appointment_id, channel, kind, recipient, subject, body, status, created_at)
+      VALUES (@appointmentId, @channel, @kind, @recipient, @subject, @body, @status, @createdAt)`);
     this.byAppointmentStmt = db.prepare<[number], NotificationRow>(
       `${SELECT} WHERE appointment_id = ? ORDER BY id`,
     );
@@ -51,6 +53,7 @@ function toNotification(row: NotificationRow): Notification {
     id: row.id,
     appointmentId: row.appointment_id,
     channel: row.channel,
+    kind: row.kind,
     recipient: row.recipient,
     subject: row.subject,
     body: row.body,

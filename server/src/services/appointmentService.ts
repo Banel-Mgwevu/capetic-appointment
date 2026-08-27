@@ -9,8 +9,14 @@ import type { ServiceRepository } from '../repositories/serviceRepository.js';
 import type { NotificationRepository } from '../repositories/notificationRepository.js';
 import type { Appointment, Branch, Notification, Service } from '../repositories/types.js';
 import type { AvailabilityService } from './availabilityService.js';
-import type { Notifier } from './notifications/notifier.js';
-import { cancellationMessages, confirmationMessages } from './notifications/templates.js';
+import type { Notifier, OutboundMessage } from './notifications/notifier.js';
+import {
+  cancellationMessages,
+  confirmationMessages,
+  formatLongDate,
+  formatTime,
+  rescheduleMessages,
+} from './notifications/templates.js';
 
 export interface BookingRequest {
   branchId: number;
@@ -30,6 +36,15 @@ export interface AppointmentDetails {
   branch: Branch;
   service: Service;
   notifications: Notification[];
+}
+
+export interface AppointmentSummary {
+  reference: string;
+  status: Appointment['status'];
+  startsAt: LocalDateTime;
+  endsAt: LocalDateTime;
+  branchName: string;
+  serviceName: string;
 }
 
 export interface AppointmentServiceDeps {
@@ -110,6 +125,18 @@ export class AppointmentService {
     return this.details(appointment);
   }
 
+  /** All bookings (any status) tied to a contact, most recent first. `contact` must already be normalised. */
+  listByContact(normalisedContact: string): AppointmentSummary[] {
+    return this.deps.appointments.findByContact(normalisedContact).map((appointment) => ({
+      reference: appointment.reference,
+      status: appointment.status,
+      startsAt: appointment.startsAt,
+      endsAt: appointment.endsAt,
+      branchName: this.mustBranch(appointment.branchId).name,
+      serviceName: this.mustService(appointment.serviceId).name,
+    }));
+  }
+
   async cancel(reference: string): Promise<AppointmentDetails> {
     const appointment = this.deps.appointments.findByReference(reference);
     if (!appointment) throw new NotFoundError('Appointment');
@@ -118,11 +145,7 @@ export class AppointmentService {
     }
 
     const branch = this.mustBranch(appointment.branchId);
-    const now = nowInZone(branch.timezone, this.deps.clock());
-    const start = split(appointment.startsAt);
-    if (start.date < now.date || (start.date === now.date && start.minutes <= now.minutes)) {
-      throw new ConflictError('APPOINTMENT_IN_PAST', 'Appointments that have already started cannot be cancelled.');
-    }
+    this.assertNotAlreadyStarted(appointment, branch, 'cancelled');
 
     const cancelledAt = this.deps.clock().toISOString();
     if (!this.deps.appointments.cancel(appointment.id, cancelledAt)) {
@@ -134,6 +157,62 @@ export class AppointmentService {
     const service = this.mustService(updated.serviceId);
     await this.dispatch(cancellationMessages(updated, branch, service));
     return this.details(updated);
+  }
+
+  async reschedule(reference: string, newStartsAt: string): Promise<AppointmentDetails> {
+    const appointment = this.deps.appointments.findByReference(reference);
+    if (!appointment) throw new NotFoundError('Appointment');
+    if (appointment.status === 'CANCELLED') {
+      throw new ConflictError('ALREADY_CANCELLED', 'This appointment has already been cancelled.');
+    }
+    if (!isValidLocalDateTime(newStartsAt)) {
+      throw new ValidationError('startsAt must be a valid local date-time in YYYY-MM-DDTHH:mm format');
+    }
+
+    const branch = this.mustBranch(appointment.branchId);
+    const service = this.mustService(appointment.serviceId);
+    this.assertNotAlreadyStarted(appointment, branch, 'rescheduled');
+
+    const { date } = split(newStartsAt);
+    this.deps.availability.assertWithinBookingWindow(branch, date);
+
+    const previousWhen = `${formatLongDate(appointment.startsAt)} at ${formatTime(appointment.startsAt)}`;
+
+    const move = this.deps.db.transaction((): Appointment => {
+      const slot = this.deps.availability
+        .slotsFor(branch, service, date, appointment.id)
+        .find((s) => s.startsAt === newStartsAt);
+
+      if (!slot) {
+        throw new ValidationError('startsAt is not a bookable time for this branch and service');
+      }
+      if (!slot.available) {
+        throw new ConflictError('SLOT_UNAVAILABLE', 'That time is no longer available. Please choose another slot.');
+      }
+
+      const rescheduledAt = this.deps.clock().toISOString();
+      if (!this.deps.appointments.reschedule(appointment.id, slot.startsAt, slot.endsAt, rescheduledAt)) {
+        throw new ConflictError('ALREADY_CANCELLED', 'This appointment can no longer be changed.');
+      }
+
+      const updated = this.deps.appointments.findByReference(reference);
+      if (!updated) throw new Error('Appointment vanished after reschedule');
+      return updated;
+    });
+
+    const updated = move();
+    this.deps.logger.info({ reference, from: appointment.startsAt, to: updated.startsAt }, 'appointment rescheduled');
+
+    await this.dispatch(rescheduleMessages(updated, branch, service, previousWhen));
+    return this.details(updated);
+  }
+
+  private assertNotAlreadyStarted(appointment: Appointment, branch: Branch, action: 'cancelled' | 'rescheduled'): void {
+    const now = nowInZone(branch.timezone, this.deps.clock());
+    const start = split(appointment.startsAt);
+    if (start.date < now.date || (start.date === now.date && start.minutes <= now.minutes)) {
+      throw new ConflictError('APPOINTMENT_IN_PAST', `Appointments that have already started cannot be ${action}.`);
+    }
   }
 
   private details(appointment: Appointment): AppointmentDetails {
@@ -149,7 +228,7 @@ export class AppointmentService {
    * Delivery failures are logged, not surfaced: the booking itself has
    * succeeded and the customer still has their reference on screen.
    */
-  private async dispatch(messages: ReturnType<typeof confirmationMessages>): Promise<Notification[]> {
+  private async dispatch(messages: OutboundMessage[]): Promise<Notification[]> {
     const sent: Notification[] = [];
     for (const message of messages) {
       try {

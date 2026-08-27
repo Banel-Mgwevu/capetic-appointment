@@ -6,7 +6,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * a booking, and an admin session) without pulling in a JWT library.
  */
 
-export type TokenKind = 'customer' | 'admin';
+export type TokenKind = 'customer' | 'admin' | 'contact';
 
 export interface TokenPayload {
   kind: TokenKind;

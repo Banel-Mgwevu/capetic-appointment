@@ -1,5 +1,15 @@
-import { getAdminToken, getAppointmentToken } from './session';
-import type { AccessGrant, AnalyticsSummary, AppointmentResponse, BookingInput, Branch, DayAvailability, Service } from './types';
+import { getAdminToken, getAppointmentToken, getContactToken } from './session';
+import type {
+  AccessGrant,
+  AnalyticsSummary,
+  AppointmentResponse,
+  AppointmentSummary,
+  AuditEntry,
+  BookingInput,
+  Branch,
+  DayAvailability,
+  Service,
+} from './types';
 
 export interface FieldIssue {
   path: string;
@@ -87,9 +97,48 @@ export const api = {
       method: 'POST',
       token: getAppointmentToken(reference),
     }),
+  reschedule: (reference: string, startsAt: string) =>
+    request<AppointmentResponse>(`/appointments/${encodeURIComponent(reference)}/reschedule`, {
+      method: 'POST',
+      body: JSON.stringify({ startsAt }),
+      token: getAppointmentToken(reference),
+    }),
+
+  /** "My appointments": OTP-gated lookup of every booking tied to a contact. */
+  requestOtp: (contact: string) => request<{ message: string }>('/customers/otp/request', { method: 'POST', body: JSON.stringify({ contact }) }),
+  verifyOtp: (contact: string, code: string) =>
+    request<AccessGrant>('/customers/otp/verify', { method: 'POST', body: JSON.stringify({ contact, code }) }),
+  myAppointments: () =>
+    request<{ appointments: AppointmentSummary[] }>('/customers/appointments', { token: getContactToken() }).then(
+      (r) => r.appointments,
+    ),
+  /** Mints a per-booking token from an already-verified contact session, so viewing a booking doesn't ask again. */
+  bookingAccessFromContactSession: (reference: string) =>
+    request<AccessGrant>(`/customers/appointments/${encodeURIComponent(reference)}/access-token`, {
+      method: 'POST',
+      token: getContactToken(),
+    }),
 
   adminLogin: (username: string, password: string) =>
     request<AccessGrant>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   analytics: (rangeDays: number) =>
     request<AnalyticsSummary>(`/analytics/summary?rangeDays=${rangeDays}`, { token: getAdminToken() }),
+
+  /** Staff tools: act on a customer's booking without the customer verifying themselves. */
+  adminLookupAppointment: (reference: string) =>
+    request<AppointmentResponse>(`/admin/appointments/${encodeURIComponent(reference)}`, { token: getAdminToken() }),
+  adminCancelAppointment: (reference: string) =>
+    request<AppointmentResponse>(`/admin/appointments/${encodeURIComponent(reference)}/cancel`, {
+      method: 'POST',
+      token: getAdminToken(),
+    }),
+  adminRescheduleAppointment: (reference: string, startsAt: string) =>
+    request<AppointmentResponse>(`/admin/appointments/${encodeURIComponent(reference)}/reschedule`, {
+      method: 'POST',
+      body: JSON.stringify({ startsAt }),
+      token: getAdminToken(),
+    }),
+  auditLog: (limit = 50) => request<{ entries: AuditEntry[] }>(`/admin/audit-log?limit=${limit}`, { token: getAdminToken() }).then((r) => r.entries),
+  triggerPrivacyPurge: () =>
+    request<{ redactedCount: number }>('/admin/privacy/purge', { method: 'POST', token: getAdminToken() }),
 };

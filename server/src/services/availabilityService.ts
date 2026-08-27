@@ -54,8 +54,12 @@ export class AvailabilityService {
   /**
    * Shared with the booking flow so that "what we showed" and "what we accept"
    * are computed by exactly the same rules.
+   *
+   * `excludeAppointmentId` is used when rescheduling: the appointment being
+   * moved still occupies its old slot in the database at the moment of this
+   * check, so it must not count against its own new slot's capacity.
    */
-  slotsFor(branch: Branch, service: Service, date: LocalDate): Slot[] {
+  slotsFor(branch: Branch, service: Service, date: LocalDate, excludeAppointmentId?: number): Slot[] {
     const window = branch.openingHours[String(weekdayOf(date)) as keyof Branch['openingHours']];
     if (!window) return [];
 
@@ -63,13 +67,17 @@ export class AvailabilityService {
     let earliestStartMinutes: number | null = null;
     if (date === now.date) earliestStartMinutes = now.minutes + this.deps.policy.minLeadMinutes;
 
+    const existing = this.deps.appointments
+      .findConfirmedOnDate(branch.id, date)
+      .filter((a) => a.id !== excludeAppointmentId);
+
     return computeSlots({
       date,
       window,
       slotMinutes: branch.slotMinutes,
       durationMinutes: service.durationMinutes,
       capacity: branch.capacity,
-      existing: this.deps.appointments.findConfirmedOnDate(branch.id, date),
+      existing,
       earliestStartMinutes,
     });
   }

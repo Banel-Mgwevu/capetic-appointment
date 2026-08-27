@@ -38,14 +38,19 @@ export interface Appointment {
   status: AppointmentStatus;
   createdAt: string;
   cancelledAt: string | null;
+  anonymisedAt: string | null;
+  rescheduledAt: string | null;
+  rescheduleCount: number;
 }
 
 export type NotificationChannel = 'EMAIL' | 'SMS';
+export type NotificationKind = 'CONFIRMATION' | 'CANCELLATION' | 'RESCHEDULE' | 'REMINDER' | 'OTHER';
 
 export interface Notification {
   id: number;
   appointmentId: number;
   channel: NotificationChannel;
+  kind: NotificationKind;
   recipient: string;
   subject: string | null;
   body: string;

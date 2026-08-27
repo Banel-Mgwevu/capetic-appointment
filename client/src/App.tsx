@@ -1,10 +1,14 @@
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { AdminAuditLogPage } from './pages/AdminAuditLogPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
+import { AdminLookupPage } from './pages/AdminLookupPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { AppointmentPage } from './pages/AppointmentPage';
 import { BookingPage } from './pages/BookingPage';
 import { ConfirmationPage } from './pages/ConfirmationPage';
 import { FindBookingPage } from './pages/FindBookingPage';
+import { MyAppointmentsPage } from './pages/MyAppointmentsPage';
+import { PrivacyNoticePage } from './pages/PrivacyNoticePage';
 
 export default function App() {
   return (
@@ -26,6 +30,7 @@ export default function App() {
               Book
             </NavLink>
             <NavLink to="/appointments">Find a booking</NavLink>
+            <NavLink to="/my-appointments">My appointments</NavLink>
             <NavLink to="/admin/analytics" className={({ isActive }) => `masthead__staff ${isActive ? 'active' : ''}`}>
               Staff
             </NavLink>
@@ -38,8 +43,12 @@ export default function App() {
           <Route path="/confirmation/:reference" element={<ConfirmationPage />} />
           <Route path="/appointments" element={<FindBookingPage />} />
           <Route path="/appointments/:reference" element={<AppointmentPage />} />
+          <Route path="/my-appointments" element={<MyAppointmentsPage />} />
+          <Route path="/privacy" element={<PrivacyNoticePage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/analytics" element={<AnalyticsPage />} />
+          <Route path="/admin/lookup" element={<AdminLookupPage />} />
+          <Route path="/admin/audit-log" element={<AdminAuditLogPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

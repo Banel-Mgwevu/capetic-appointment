@@ -1,16 +1,24 @@
 import { timingSafeEqual } from 'node:crypto';
+import { normaliseContact } from '../domain/customer.js';
 import { ConflictError, NotFoundError, ValidationError } from '../domain/errors.js';
+import { verifyPassword } from '../domain/password.js';
 import { issueToken, verifyToken, type TokenPayload } from '../domain/token.js';
+import type { Logger } from '../logger.js';
 import type { AppointmentRepository } from '../repositories/appointmentRepository.js';
 
 const CUSTOMER_TOKEN_TTL_SECONDS = 30 * 60; // 30 minutes
+const CONTACT_TOKEN_TTL_SECONDS = 15 * 60; // 15 minutes, for the "my appointments" list
 const ADMIN_TOKEN_TTL_SECONDS = 8 * 60 * 60; // 8 hours
 
 export interface AuthDeps {
   appointments: AppointmentRepository;
   secret: string;
   adminUsername: string;
+  /** Preferred. A scrypt hash from `npm run hash-password`. */
+  adminPasswordHash?: string | undefined;
+  /** Dev-only fallback when no hash is configured. */
   adminPassword: string;
+  logger: Logger;
 }
 
 function constantTimeEquals(a: string, b: string): boolean {
@@ -25,12 +33,15 @@ function constantTimeEquals(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
-function normaliseContact(value: string): string {
-  return value.trim().toLowerCase().replace(/[\s()-]/g, '');
-}
-
 export class AuthService {
-  constructor(private readonly deps: AuthDeps) {}
+  constructor(private readonly deps: AuthDeps) {
+    if (!deps.adminPasswordHash) {
+      deps.logger.warn(
+        'ADMIN_PASSWORD_HASH is not set; falling back to plaintext ADMIN_PASSWORD. ' +
+          'Run `npm run hash-password -w server -- <password>` and set ADMIN_PASSWORD_HASH before deploying.',
+      );
+    }
+  }
 
   /** Issued right after a successful booking, when the caller already proved ownership by creating it. */
   issueAppointmentToken(reference: string): { token: string; expiresInSeconds: number } {
@@ -62,9 +73,24 @@ export class AuthService {
     return payload !== null && payload.subject === reference;
   }
 
-  adminLogin(username: string, password: string): { token: string; expiresInSeconds: number } {
+  /** Issued once a "my appointments" OTP has been verified for this contact. */
+  issueContactToken(normalisedContact: string): { token: string; expiresInSeconds: number } {
+    const token = issueToken(this.deps.secret, 'contact', normalisedContact, CONTACT_TOKEN_TTL_SECONDS);
+    return { token, expiresInSeconds: CONTACT_TOKEN_TTL_SECONDS };
+  }
+
+  /** Returns the verified contact the token was issued for, or null. */
+  verifyContactToken(token: string): string | null {
+    const payload = verifyToken(this.deps.secret, token, 'contact');
+    return payload?.subject ?? null;
+  }
+
+  async adminLogin(username: string, password: string): Promise<{ token: string; expiresInSeconds: number }> {
     const validUsername = constantTimeEquals(username, this.deps.adminUsername);
-    const validPassword = constantTimeEquals(password, this.deps.adminPassword);
+    const validPassword = this.deps.adminPasswordHash
+      ? await verifyPassword(password, this.deps.adminPasswordHash)
+      : constantTimeEquals(password, this.deps.adminPassword);
+
     if (!validUsername || !validPassword) {
       throw new ValidationError('Incorrect username or password.');
     }

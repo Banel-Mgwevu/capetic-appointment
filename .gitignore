@@ -8,3 +8,8 @@ data/
 coverage/
 .DS_Store
 npm-debug.log*
+
+# Playwright
+/test-results/
+/playwright-report/
+/e2e/.tmp/

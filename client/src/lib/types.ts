@@ -52,6 +52,8 @@ export interface Appointment {
   notes: string | null;
   createdAt: string;
   cancelledAt: string | null;
+  rescheduledAt: string | null;
+  rescheduleCount: number;
   branch: Branch;
   service: Service;
 }
@@ -59,6 +61,7 @@ export interface Appointment {
 export interface NotificationRecord {
   id: number;
   channel: 'EMAIL' | 'SMS';
+  kind: 'CONFIRMATION' | 'CANCELLATION' | 'RESCHEDULE' | 'REMINDER' | 'OTHER';
   recipient: string;
   subject: string | null;
   body: string;
@@ -104,4 +107,25 @@ export interface BookingInput {
   startsAt: string;
   customer: CustomerInput;
   notes?: string;
+  consent: boolean;
+}
+
+export interface AppointmentSummary {
+  reference: string;
+  status: AppointmentStatus;
+  startsAt: string;
+  endsAt: string;
+  branchName: string;
+  serviceName: string;
+}
+
+export interface AuditEntry {
+  id: number;
+  actor: string;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  metadata: Record<string, unknown> | null;
+  ip: string | null;
+  createdAt: string;
 }

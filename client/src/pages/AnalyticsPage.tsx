@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarList } from '../components/BarList';
-import { Spinner } from '../components/Spinner';
 import { Notice } from '../components/Notice';
+import { Spinner } from '../components/Spinner';
+import { StaffNav } from '../components/StaffNav';
 import { api, ApiError } from '../lib/api';
 import { formatShortDate } from '../lib/dates';
 import { clearAdminToken, getAdminToken } from '../lib/session';
@@ -41,11 +42,6 @@ export function AnalyticsPage() {
     };
   }, [rangeDays, navigate]);
 
-  const signOut = () => {
-    clearAdminToken();
-    navigate('/admin/login');
-  };
-
   if (error) {
     return (
       <div className="page">
@@ -79,6 +75,7 @@ export function AnalyticsPage() {
 
   return (
     <div className="page">
+      <StaffNav />
       <header className="page__head analytics__head">
         <div>
           <p className="eyebrow">Staff dashboard</p>
@@ -88,22 +85,17 @@ export function AnalyticsPage() {
             {data.busiestBranch && <> · Busiest branch: <strong>{data.busiestBranch}</strong></>}
           </p>
         </div>
-        <div className="analytics__controls">
-          <div className="segmented" role="group" aria-label="Date range">
-            {RANGE_OPTIONS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={`segmented__option ${option === rangeDays ? 'segmented__option--active' : ''}`}
-                onClick={() => setRangeDays(option)}
-              >
-                {option}d
-              </button>
-            ))}
-          </div>
-          <button type="button" className="button button--ghost" onClick={signOut}>
-            Sign out
-          </button>
+        <div className="segmented" role="group" aria-label="Date range">
+          {RANGE_OPTIONS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`segmented__option ${option === rangeDays ? 'segmented__option--active' : ''}`}
+              onClick={() => setRangeDays(option)}
+            >
+              {option}d
+            </button>
+          ))}
         </div>
       </header>
 

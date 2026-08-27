@@ -19,8 +19,22 @@ const configSchema = z.object({
   /** Secret used to sign customer-access and admin session tokens. */
   AUTH_SECRET: z.string().min(16).default('dev-only-secret-change-me-please-32chars'),
   ADMIN_USERNAME: z.string().min(1).default('admin'),
-  /** Plaintext only for this exercise; a real deployment would store a hash. */
+  /**
+   * Preferred: a scrypt hash produced by `npm run hash-password -w server -- <password>`.
+   * Falls back to plaintext ADMIN_PASSWORD (logged as a startup warning) so local
+   * setup still works without an extra step, but production should always set this.
+   */
+  ADMIN_PASSWORD_HASH: z.string().optional(),
   ADMIN_PASSWORD: z.string().min(1).default('changeme123'),
+
+  /** How long a cancelled/completed booking's personal details are kept before anonymisation. */
+  DATA_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
+  /** How often the retention sweep runs. Set 0 to disable the background job (e.g. in tests). */
+  RETENTION_CHECK_INTERVAL_HOURS: z.coerce.number().min(0).max(24 * 30).default(24),
+  /** How often the reminder job checks for appointments happening tomorrow. 0 disables it. */
+  REMINDER_CHECK_INTERVAL_MINUTES: z.coerce.number().min(0).max(24 * 60).default(60),
+  /** Contact address shown on the privacy notice for data-subject requests. */
+  PRIVACY_CONTACT_EMAIL: z.string().min(1).default('privacy@capitec.example'),
 });
 
 export type Config = z.infer<typeof configSchema>;

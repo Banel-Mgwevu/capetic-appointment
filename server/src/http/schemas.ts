@@ -52,12 +52,31 @@ export const bookingBody = z.object({
     .max(500, 'Notes must be 500 characters or fewer')
     .optional()
     .transform((value) => (value === '' ? undefined : value)),
+  consent: z
+    .boolean()
+    .refine((value) => value === true, { message: 'You must accept the privacy notice to book an appointment.' }),
 });
 
 export type BookingBody = z.infer<typeof bookingBody>;
 
 export const accessBody = z.object({
   contact: z.string().trim().min(3, 'Enter the email or phone number on the booking').max(254),
+});
+
+export const rescheduleBody = z.object({
+  startsAt: z.string().regex(LOCAL_DATETIME_RE, 'startsAt must be YYYY-MM-DDTHH:mm'),
+});
+
+export const otpRequestBody = z.object({
+  contact: z.string().trim().min(3, 'Enter your email or phone number').max(254),
+});
+
+export const otpVerifyBody = z.object({
+  contact: z.string().trim().min(3).max(254),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code'),
 });
 
 export const adminLoginBody = z.object({
@@ -67,4 +86,8 @@ export const adminLoginBody = z.object({
 
 export const analyticsQuery = z.object({
   rangeDays: z.coerce.number().int().min(1).max(365).default(30),
+});
+
+export const auditLogQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
 });

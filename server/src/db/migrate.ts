@@ -66,6 +66,54 @@ const migrations: Migration[] = [
       CREATE INDEX idx_notifications_appointment ON notifications (appointment_id);
     `,
   },
+  {
+    id: '0002_privacy_reschedule_audit',
+    sql: `
+      -- What kind of message this was, so the reminder job can tell whether one
+      -- was already sent, and so an auditor can see the shape of the outbox
+      -- without parsing free-text subjects.
+      ALTER TABLE notifications ADD COLUMN kind TEXT NOT NULL DEFAULT 'OTHER';
+
+      -- POPIA-aligned data retention: once a booking is old enough that we no
+      -- longer need the customer's personal details for the purpose they were
+      -- collected for, the fields are overwritten in place rather than the row
+      -- deleted, so booking counts and analytics stay accurate.
+      ALTER TABLE appointments ADD COLUMN anonymised_at TEXT;
+      ALTER TABLE appointments ADD COLUMN rescheduled_at TEXT;
+      ALTER TABLE appointments ADD COLUMN reschedule_count INTEGER NOT NULL DEFAULT 0;
+
+      -- One-time codes for the "my appointments" lookup: proves control of an
+      -- email or phone number before listing every booking tied to it, since
+      -- (unlike a single booking reference) a contact alone isn't a secret.
+      CREATE TABLE otp_codes (
+        id           INTEGER PRIMARY KEY,
+        contact      TEXT    NOT NULL, -- normalised email or E.164 phone
+        code_hash    TEXT    NOT NULL,
+        attempts     INTEGER NOT NULL DEFAULT 0,
+        expires_at   TEXT    NOT NULL,
+        consumed_at  TEXT,
+        created_at   TEXT    NOT NULL
+      );
+      CREATE INDEX idx_otp_codes_contact ON otp_codes (contact, created_at);
+
+      -- Audit trail for staff/admin actions only: logins, support lookups of a
+      -- customer's booking, and any action taken on a customer's behalf.
+      -- Customers acting on their own bookings are already recorded via
+      -- appointment status and the notifications table, so those are not
+      -- duplicated here.
+      CREATE TABLE audit_log (
+        id           INTEGER PRIMARY KEY,
+        actor        TEXT    NOT NULL, -- admin username
+        action       TEXT    NOT NULL, -- e.g. ADMIN_LOGIN_SUCCESS, ADMIN_LOGIN_FAILURE, APPOINTMENT_LOOKUP
+        target_type  TEXT,             -- e.g. 'appointment'
+        target_id    TEXT,             -- e.g. booking reference
+        metadata     TEXT,             -- JSON, small and non-sensitive (no PII)
+        ip           TEXT,
+        created_at   TEXT    NOT NULL
+      );
+      CREATE INDEX idx_audit_log_created ON audit_log (created_at);
+    `,
+  },
 ];
 
 export function migrate(db: Db): string[] {

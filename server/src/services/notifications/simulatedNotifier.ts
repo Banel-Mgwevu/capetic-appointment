@@ -20,6 +20,7 @@ export class SimulatedNotifier implements Notifier {
     const id = this.notifications.insert({
       appointmentId: message.appointmentId,
       channel: message.channel,
+      kind: message.kind,
       recipient: message.recipient,
       subject: message.subject ?? null,
       body: message.body,
@@ -36,6 +37,7 @@ export class SimulatedNotifier implements Notifier {
       id,
       appointmentId: message.appointmentId,
       channel: message.channel,
+      kind: message.kind,
       recipient: message.recipient,
       subject: message.subject ?? null,
       body: message.body,

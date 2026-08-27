@@ -20,13 +20,16 @@ function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName;
 }
 
-export function confirmationMessages(appointment: Appointment, branch: Branch, service: Service): OutboundMessage[] {
-  const when = `${formatLongDate(appointment.startsAt)} at ${formatTime(appointment.startsAt)}`;
+function when(appointment: Appointment): string {
+  return `${formatLongDate(appointment.startsAt)} at ${formatTime(appointment.startsAt)}`;
+}
 
+export function confirmationMessages(appointment: Appointment, branch: Branch, service: Service): OutboundMessage[] {
   return [
     {
       appointmentId: appointment.id,
       channel: 'EMAIL',
+      kind: 'CONFIRMATION',
       recipient: appointment.customerEmail,
       subject: `Your branch appointment is confirmed (${appointment.reference})`,
       body: [
@@ -37,7 +40,7 @@ export function confirmationMessages(appointment: Appointment, branch: Branch, s
         `Reference:  ${appointment.reference}`,
         `Service:    ${service.name}`,
         `Branch:     ${branch.name}, ${branch.address}`,
-        `When:       ${when} (about ${service.durationMinutes} minutes)`,
+        `When:       ${when(appointment)} (about ${service.durationMinutes} minutes)`,
         '',
         `Please arrive 5 minutes early and bring your ID document.`,
         `Need to change or cancel? Use your reference on the appointments page.`,
@@ -49,27 +52,27 @@ export function confirmationMessages(appointment: Appointment, branch: Branch, s
     {
       appointmentId: appointment.id,
       channel: 'SMS',
+      kind: 'CONFIRMATION',
       recipient: appointment.customerPhone,
       body:
         `Hi ${firstName(appointment.customerName)}, your ${service.name.toLowerCase()} appointment at ` +
-        `${branch.name} is confirmed for ${when}. Ref ${appointment.reference}. Please bring your ID.`,
+        `${branch.name} is confirmed for ${when(appointment)}. Ref ${appointment.reference}. Please bring your ID.`,
     },
   ];
 }
 
 export function cancellationMessages(appointment: Appointment, branch: Branch, service: Service): OutboundMessage[] {
-  const when = `${formatLongDate(appointment.startsAt)} at ${formatTime(appointment.startsAt)}`;
-
   return [
     {
       appointmentId: appointment.id,
       channel: 'EMAIL',
+      kind: 'CANCELLATION',
       recipient: appointment.customerEmail,
       subject: `Your branch appointment has been cancelled (${appointment.reference})`,
       body: [
         `Hi ${firstName(appointment.customerName)},`,
         '',
-        `Your ${service.name.toLowerCase()} appointment at ${branch.name} on ${when} has been cancelled.`,
+        `Your ${service.name.toLowerCase()} appointment at ${branch.name} on ${when(appointment)} has been cancelled.`,
         `The slot has been released for other customers.`,
         '',
         `You're welcome to book again whenever it suits you.`,
@@ -80,8 +83,81 @@ export function cancellationMessages(appointment: Appointment, branch: Branch, s
     {
       appointmentId: appointment.id,
       channel: 'SMS',
+      kind: 'CANCELLATION',
       recipient: appointment.customerPhone,
-      body: `Your appointment ${appointment.reference} at ${branch.name} on ${when} has been cancelled.`,
+      body: `Your appointment ${appointment.reference} at ${branch.name} on ${when(appointment)} has been cancelled.`,
+    },
+  ];
+}
+
+export function rescheduleMessages(
+  appointment: Appointment,
+  branch: Branch,
+  service: Service,
+  previousWhen: string,
+): OutboundMessage[] {
+  return [
+    {
+      appointmentId: appointment.id,
+      channel: 'EMAIL',
+      kind: 'RESCHEDULE',
+      recipient: appointment.customerEmail,
+      subject: `Your branch appointment has been moved (${appointment.reference})`,
+      body: [
+        `Hi ${firstName(appointment.customerName)},`,
+        '',
+        `Your ${service.name.toLowerCase()} appointment at ${branch.name} has been moved.`,
+        '',
+        `Was:  ${previousWhen}`,
+        `Now:  ${when(appointment)}`,
+        '',
+        `Reference: ${appointment.reference}`,
+        `Need to change again or cancel? Use your reference on the appointments page.`,
+        '',
+        `See you then,`,
+        `${branch.name} branch team`,
+      ].join('\n'),
+    },
+    {
+      appointmentId: appointment.id,
+      channel: 'SMS',
+      kind: 'RESCHEDULE',
+      recipient: appointment.customerPhone,
+      body: `Your appointment ${appointment.reference} at ${branch.name} was moved to ${when(appointment)}.`,
+    },
+  ];
+}
+
+export function reminderMessages(appointment: Appointment, branch: Branch, service: Service): OutboundMessage[] {
+  return [
+    {
+      appointmentId: appointment.id,
+      channel: 'EMAIL',
+      kind: 'REMINDER',
+      recipient: appointment.customerEmail,
+      subject: `Reminder: your appointment is tomorrow (${appointment.reference})`,
+      body: [
+        `Hi ${firstName(appointment.customerName)},`,
+        '',
+        `This is a reminder about your appointment tomorrow.`,
+        '',
+        `Reference:  ${appointment.reference}`,
+        `Service:    ${service.name}`,
+        `Branch:     ${branch.name}, ${branch.address}`,
+        `When:       ${when(appointment)}`,
+        '',
+        `Please arrive 5 minutes early and bring your ID document.`,
+        '',
+        `See you soon,`,
+        `${branch.name} branch team`,
+      ].join('\n'),
+    },
+    {
+      appointmentId: appointment.id,
+      channel: 'SMS',
+      kind: 'REMINDER',
+      recipient: appointment.customerPhone,
+      body: `Reminder: your ${service.name.toLowerCase()} appointment at ${branch.name} is tomorrow at ${formatTime(appointment.startsAt)}. Ref ${appointment.reference}.`,
     },
   ];
 }

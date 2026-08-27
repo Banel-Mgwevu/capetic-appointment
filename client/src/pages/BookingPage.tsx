@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Field } from '../components/Field';
 import { Notice } from '../components/Notice';
 import { SlotGrid } from '../components/SlotGrid';
@@ -42,6 +42,8 @@ export function BookingPage() {
   const [slot, setSlot] = useState<Slot>();
   const [customer, setCustomer] = useState<CustomerInput>(EMPTY_CUSTOMER);
   const [notes, setNotes] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [consentError, setConsentError] = useState<string>();
 
   // Availability for the chosen day. The result is tagged with the request it
   // answers, so "loading" is derived (result is stale) rather than tracked.
@@ -148,7 +150,8 @@ export function BookingPage() {
 
     const errors = validateCustomer(customer);
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    setConsentError(consent ? undefined : 'You must accept the privacy notice to book an appointment.');
+    if (Object.keys(errors).length > 0 || !consent) return;
 
     setSubmitting(true);
     setSubmitError(undefined);
@@ -164,6 +167,7 @@ export function BookingPage() {
           ...(customer.idNumber?.trim() ? { idNumber: customer.idNumber.trim() } : {}),
         },
         ...(notes.trim() ? { notes: notes.trim() } : {}),
+        consent,
       });
       if (result.access) storeAppointmentToken(result.appointment.reference, result.access.token);
       navigate(`/confirmation/${result.appointment.reference}`, { state: result, replace: false });
@@ -177,6 +181,7 @@ export function BookingPage() {
         const mapped = Object.fromEntries(
           Object.entries(error.fieldErrors).map(([path, message]) => [path.replace(/^customer\./, ''), message]),
         );
+        if (mapped.consent) setConsentError(mapped.consent);
         setFieldErrors(mapped);
         setSubmitError('Please check the highlighted fields.');
       } else {
@@ -410,6 +415,33 @@ export function BookingPage() {
                   />
                 )}
               </Field>
+
+              <div className={`consent ${consentError ? 'consent--error' : ''}`}>
+                <label className="consent__label">
+                  <input
+                    type="checkbox"
+                    checked={consent}
+                    onChange={(e) => {
+                      setConsent(e.target.checked);
+                      if (e.target.checked) setConsentError(undefined);
+                    }}
+                    aria-invalid={Boolean(consentError)}
+                    aria-describedby={consentError ? 'consent-error' : undefined}
+                  />
+                  <span>
+                    I agree to Capitec storing my details to manage this appointment, as described in the{' '}
+                    <Link to="/privacy" target="_blank" rel="noopener noreferrer">
+                      privacy notice
+                    </Link>
+                    .
+                  </span>
+                </label>
+                {consentError && (
+                  <p id="consent-error" className="field__error" role="alert">
+                    {consentError}
+                  </p>
+                )}
+              </div>
 
               <div className="step__actions">
                 <button type="submit" className="button button--primary" disabled={submitting}>

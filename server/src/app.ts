@@ -10,6 +10,8 @@ import type { Db } from './db/connection.js';
 import type { Logger } from './logger.js';
 import { AnalyticsRepository } from './repositories/analyticsRepository.js';
 import { AppointmentRepository } from './repositories/appointmentRepository.js';
+import { AuditLogRepository } from './repositories/auditLogRepository.js';
+import { OtpRepository } from './repositories/otpRepository.js';
 import { BranchRepository } from './repositories/branchRepository.js';
 import { NotificationRepository } from './repositories/notificationRepository.js';
 import { ServiceRepository } from './repositories/serviceRepository.js';
@@ -17,14 +19,18 @@ import { AnalyticsService } from './services/analyticsService.js';
 import { AppointmentService } from './services/appointmentService.js';
 import { AuthService } from './services/authService.js';
 import { AvailabilityService } from './services/availabilityService.js';
+import { OtpService } from './services/otpService.js';
 import type { Notifier } from './services/notifications/notifier.js';
 import { SimulatedNotifier } from './services/notifications/simulatedNotifier.js';
 import { errorHandler, notFoundHandler } from './http/middleware/errorHandler.js';
+import { adminRouter } from './http/routes/admin.js';
 import { analyticsRouter } from './http/routes/analytics.js';
 import { appointmentsRouter } from './http/routes/appointments.js';
 import { authRouter } from './http/routes/auth.js';
+import { customersRouter } from './http/routes/customers.js';
 import { healthRouter } from './http/routes/health.js';
 import { referenceDataRouter } from './http/routes/referenceData.js';
+import { RetentionService } from './services/retentionService.js';
 
 export interface AppOptions {
   config: Config;
@@ -34,22 +40,35 @@ export interface AppOptions {
   notifier?: Notifier;
   /** Override for deterministic tests */
   clock?: () => Date;
+  /** Test-only: observe generated OTP codes without a real inbox. Never used in production. */
+  onOtpCode?: (contact: string, code: string) => void;
 }
 
-export function createApp({ config, db, logger, notifier, clock = () => new Date() }: AppOptions): Express {
+export function createApp({ config, db, logger, notifier, clock = () => new Date(), onOtpCode }: AppOptions): Express {
   const branches = new BranchRepository(db);
   const services = new ServiceRepository(db);
   const appointmentRepo = new AppointmentRepository(db);
   const notificationRepo = new NotificationRepository(db);
   const analyticsRepo = new AnalyticsRepository(db);
+  const auditLogRepo = new AuditLogRepository(db);
+  const otpRepo = new OtpRepository(db);
 
   const auth = new AuthService({
     appointments: appointmentRepo,
     secret: config.AUTH_SECRET,
     adminUsername: config.ADMIN_USERNAME,
+    adminPasswordHash: config.ADMIN_PASSWORD_HASH,
     adminPassword: config.ADMIN_PASSWORD,
+    logger,
   });
   const analytics = new AnalyticsService(analyticsRepo, clock);
+  const otp = new OtpService({ otps: otpRepo, secret: config.AUTH_SECRET, logger, clock, onCodeGenerated: onOtpCode });
+  const retention = new RetentionService({
+    appointments: appointmentRepo,
+    retentionDays: config.DATA_RETENTION_DAYS,
+    logger,
+    clock,
+  });
 
   const policy = { horizonDays: config.BOOKING_HORIZON_DAYS, minLeadMinutes: config.BOOKING_MIN_LEAD_MINUTES };
   const availability = new AvailabilityService({ branches, services, appointments: appointmentRepo, policy, clock });
@@ -114,8 +133,10 @@ export function createApp({ config, db, logger, notifier, clock = () => new Date
   api.use(healthRouter(db));
   api.use(referenceDataRouter({ branches, services, availability }));
   api.use(appointmentsRouter({ appointments, auth, rateLimiting: config.NODE_ENV !== 'test' }));
-  api.use(authRouter({ auth, rateLimiting: config.NODE_ENV !== 'test' }));
+  api.use(authRouter({ auth, auditLog: auditLogRepo, rateLimiting: config.NODE_ENV !== 'test', clock }));
+  api.use(customersRouter({ appointments, otp, auth, rateLimiting: config.NODE_ENV !== 'test' }));
   api.use(analyticsRouter({ analytics, auth }));
+  api.use(adminRouter({ appointments, auth, auditLog: auditLogRepo, retention, clock }));
   api.use(notFoundHandler);
   app.use('/api', api);
 

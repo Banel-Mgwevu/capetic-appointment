@@ -1,16 +1,19 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import type { z } from 'zod';
+import type { AuditLogRepository } from '../../repositories/auditLogRepository.js';
 import type { AuthService } from '../../services/authService.js';
 import { accessBody, adminLoginBody, referenceParams } from '../schemas.js';
 import { validate, validated } from '../middleware/validate.js';
 
 interface Deps {
   auth: AuthService;
+  auditLog: AuditLogRepository;
   rateLimiting: boolean;
+  clock: () => Date;
 }
 
-export function authRouter({ auth, rateLimiting }: Deps): Router {
+export function authRouter({ auth, auditLog, rateLimiting, clock }: Deps): Router {
   const router = Router();
 
   // Both endpoints are guess-a-secret targets (contact details / admin
@@ -40,13 +43,28 @@ export function authRouter({ auth, rateLimiting }: Deps): Router {
     },
   );
 
-  router.post('/auth/login', limiter, validate('body', adminLoginBody), (_req, res, next) => {
-    try {
-      const { username, password } = validated<z.infer<typeof adminLoginBody>>(res, 'body');
-      res.json(auth.adminLogin(username, password));
-    } catch (error) {
-      next(error);
-    }
+  router.post('/auth/login', limiter, validate('body', adminLoginBody), (req, res, next) => {
+    const { username, password } = validated<z.infer<typeof adminLoginBody>>(res, 'body');
+    auth
+      .adminLogin(username, password)
+      .then((result) => {
+        auditLog.record({
+          actor: username,
+          action: 'ADMIN_LOGIN_SUCCESS',
+          ip: req.ip ?? null,
+          createdAt: clock().toISOString(),
+        });
+        res.json(result);
+      })
+      .catch((error: unknown) => {
+        auditLog.record({
+          actor: username,
+          action: 'ADMIN_LOGIN_FAILURE',
+          ip: req.ip ?? null,
+          createdAt: clock().toISOString(),
+        });
+        next(error);
+      });
   });
 
   return router;

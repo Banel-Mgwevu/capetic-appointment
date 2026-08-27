@@ -31,14 +31,34 @@ export function requireAppointmentAccess(auth: AuthService): RequestHandler {
   };
 }
 
-/** Requires a valid admin session token. */
+/** Requires a valid admin session token. Exposes the admin username as res.locals.adminUsername. */
 export function requireAdmin(auth: AuthService): RequestHandler {
-  return (req, _res, next) => {
+  return (req, res, next) => {
     const token = bearerToken(req);
-    if (!token || !auth.verifyAdminToken(token)) {
+    const payload = token ? auth.verifyAdminToken(token) : null;
+    if (!payload) {
       next(new AuthenticationError('Admin sign-in required.'));
       return;
     }
+    res.locals.adminUsername = payload.subject;
+    next();
+  };
+}
+
+/**
+ * Requires a contact-session token issued after a verified OTP (see
+ * POST /customers/otp/verify). Exposes the verified contact as
+ * res.locals.contact for the route to scope its query by.
+ */
+export function requireContactAccess(auth: AuthService): RequestHandler {
+  return (req, res, next) => {
+    const token = bearerToken(req);
+    const contact = token ? auth.verifyContactToken(token) : null;
+    if (!contact) {
+      next(new AuthenticationError('Verify your email or phone number to view your appointments.'));
+      return;
+    }
+    res.locals.contact = contact;
     next();
   };
 }

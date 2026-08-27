@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import type { z } from 'zod';
 import type { AppointmentDetails, AppointmentService } from '../../services/appointmentService.js';
 import type { AuthService } from '../../services/authService.js';
-import { bookingBody, referenceParams } from '../schemas.js';
+import { bookingBody, referenceParams, rescheduleBody } from '../schemas.js';
 import { requireAppointmentAccess } from '../middleware/auth.js';
 import { validate, validated } from '../middleware/validate.js';
 
@@ -69,6 +69,22 @@ export function appointmentsRouter({ appointments, auth, rateLimiting }: Deps): 
     },
   );
 
+  router.post(
+    '/appointments/:reference/reschedule',
+    bookingLimiter,
+    validate('params', referenceParams),
+    validate('body', rescheduleBody),
+    requireAppointmentAccess(auth),
+    (_req, res, next) => {
+      const { reference } = validated<z.infer<typeof referenceParams>>(res, 'params');
+      const { startsAt } = validated<z.infer<typeof rescheduleBody>>(res, 'body');
+      appointments
+        .reschedule(reference, startsAt)
+        .then((details) => res.json(toResponse(details)))
+        .catch(next);
+    },
+  );
+
   return router;
 }
 
@@ -77,7 +93,7 @@ export function appointmentsRouter({ appointments, auth, rateLimiting }: Deps): 
  * returned (it is only stored for the branch to verify identity on arrival),
  * and related entities are embedded so the UI needs a single request.
  */
-function toResponse({ appointment, branch, service, notifications }: AppointmentDetails) {
+export function toResponse({ appointment, branch, service, notifications }: AppointmentDetails) {
   return {
     appointment: {
       reference: appointment.reference,
@@ -92,12 +108,15 @@ function toResponse({ appointment, branch, service, notifications }: Appointment
       notes: appointment.notes,
       createdAt: appointment.createdAt,
       cancelledAt: appointment.cancelledAt,
+      rescheduledAt: appointment.rescheduledAt,
+      rescheduleCount: appointment.rescheduleCount,
       branch,
       service,
     },
     notifications: notifications.map((n) => ({
       id: n.id,
       channel: n.channel,
+      kind: n.kind,
       recipient: n.recipient,
       subject: n.subject,
       body: n.body,

@@ -1,8 +1,9 @@
-import type { Notification, NotificationChannel } from '../../repositories/types.js';
+import type { Notification, NotificationChannel, NotificationKind } from '../../repositories/types.js';
 
 export interface OutboundMessage {
   appointmentId: number;
   channel: NotificationChannel;
+  kind: NotificationKind;
   recipient: string;
   subject?: string;
   body: string;
