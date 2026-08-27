@@ -39,11 +39,15 @@ export function BookingPage() {
   const [customer, setCustomer] = useState<CustomerInput>(EMPTY_CUSTOMER);
   const [notes, setNotes] = useState('');
 
-  // Availability for the chosen day
-  const [availability, setAvailability] = useState<DayAvailability>();
-  const [availabilityLoading, setAvailabilityLoading] = useState(false);
-  const [availabilityError, setAvailabilityError] = useState<string>();
+  // Availability for the chosen day. The result is tagged with the request it
+  // answers, so "loading" is derived (result is stale) rather than tracked.
   const [refreshKey, setRefreshKey] = useState(0);
+  const availabilityKey = branch && service && date ? `${branch.id}:${service.id}:${date}:${refreshKey}` : undefined;
+  const [availabilityResult, setAvailabilityResult] = useState<{ key: string; day?: DayAvailability; error?: string }>();
+  const currentResult = availabilityResult?.key === availabilityKey ? availabilityResult : undefined;
+  const availability = currentResult?.day;
+  const availabilityError = currentResult?.error;
+  const availabilityLoading = availabilityKey !== undefined && currentResult === undefined;
 
   // Submission
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -67,25 +71,25 @@ export function BookingPage() {
   }, []);
 
   useEffect(() => {
-    if (!branch || !service || !date) return;
+    if (!availabilityKey || !branch || !service || !date) return;
     let cancelled = false;
-    setAvailabilityLoading(true);
-    setAvailabilityError(undefined);
     api
       .availability(branch.id, service.id, date)
       .then((day) => {
-        if (!cancelled) setAvailability(day);
+        if (!cancelled) setAvailabilityResult({ key: availabilityKey, day });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setAvailabilityError(error instanceof Error ? error.message : 'Could not load times.');
-      })
-      .finally(() => {
-        if (!cancelled) setAvailabilityLoading(false);
+        if (!cancelled) {
+          setAvailabilityResult({
+            key: availabilityKey,
+            error: error instanceof Error ? error.message : 'Could not load times.',
+          });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [branch, service, date, refreshKey]);
+  }, [availabilityKey, branch, service, date]);
 
   const today = useMemo(() => todayAt(branch?.timezone ?? 'Africa/Johannesburg'), [branch]);
   const lastBookableDate = useMemo(() => addDays(today, HORIZON_DAYS), [today]);
@@ -279,7 +283,7 @@ export function BookingPage() {
                       Try again
                     </button>
                   </Notice>
-                ) : availabilityLoading || !availability || availability.date !== date ? (
+                ) : availabilityLoading || !availability ? (
                   <p className="muted">Checking availability…</p>
                 ) : availability.slots.every((s) => !s.available) ? (
                   <Notice tone="info">

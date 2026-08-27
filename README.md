@@ -2,7 +2,7 @@
 
 A full-stack system for customers to book an appointment at a bank branch and receive a (simulated) confirmation by email and SMS.
 
-- **Backend:** Node.js 20, TypeScript, Express, SQLite (better-sqlite3), Zod, Pino
+- **Backend:** Node.js 22, TypeScript, Express, SQLite (better-sqlite3), Zod, Pino
 - **Frontend:** React 18, TypeScript, Vite, React Router
 - **Tests:** Vitest, Supertest, Testing Library
 - **Packaging:** single Docker image serving both the API and the built web app
@@ -26,7 +26,7 @@ Then open <http://localhost:3000>. The SQLite database is written to the `appoin
 
 ### Locally
 
-Requires Node.js 20+ and npm 9+.
+Requires Node.js 22 or 24 and npm 10+. (`better-sqlite3` downloads a prebuilt binary for these versions, so no C++ toolchain is needed.)
 
 ```bash
 npm install

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Full-stack branch appointment booking system (Node.js/TypeScript, Express, SQLite, React)",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
   },
   "workspaces": [
     "server",
