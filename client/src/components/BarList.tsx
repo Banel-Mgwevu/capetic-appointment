@@ -23,7 +23,9 @@ export function BarList({ items, unit }: BarListProps) {
     <ul className="barlist">
       {items.map((item) => (
         <li key={item.label} className="barlist__row">
-          <span className="barlist__label">{item.label}</span>
+          <span className="barlist__label" title={item.label}>
+            {item.label}
+          </span>
           <span className="barlist__track">
             <span className="barlist__bar" style={{ width: `${(item.value / max) * 100}%` }} />
             {item.secondaryValue ? (

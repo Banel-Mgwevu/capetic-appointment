@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { MessageLog } from '../components/MessageLog';
 import { Notice } from '../components/Notice';
+import { Spinner } from '../components/Spinner';
 import { Ticket } from '../components/Ticket';
 import { api, ApiError } from '../lib/api';
 import { clearAppointmentToken, getAppointmentToken } from '../lib/session';
@@ -74,7 +75,8 @@ export function AppointmentPage() {
   }
   if (!data) {
     return (
-      <div className="page">
+      <div className="page page--loading">
+        <Spinner />
         <p className="muted">Loading appointment…</p>
       </div>
     );
@@ -109,7 +111,8 @@ export function AppointmentPage() {
               {confirming ? (
                 <div className="confirmation__actions">
                   <button type="button" className="button button--danger" disabled={cancelling} onClick={() => void cancelAppointment()}>
-                    {cancelling ? 'Cancelling…' : 'Yes, cancel it'}
+                    {cancelling && <Spinner />}
+                    {cancelling ? 'Cancelling' : 'Yes, cancel it'}
                   </button>
                   <button type="button" className="button button--ghost" disabled={cancelling} onClick={() => setConfirming(false)}>
                     Keep appointment

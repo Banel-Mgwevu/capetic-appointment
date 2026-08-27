@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Field } from '../components/Field';
 import { Notice } from '../components/Notice';
+import { Spinner } from '../components/Spinner';
 import { api, ApiError } from '../lib/api';
 import { storeAppointmentToken } from '../lib/session';
 
@@ -93,7 +94,8 @@ export function FindBookingPage() {
         </Field>
         <div className="step__actions">
           <button type="submit" className="button button--primary" disabled={submitting}>
-            {submitting ? 'Checking…' : 'View my appointment'}
+            {submitting && <Spinner />}
+            {submitting ? 'Checking' : 'View my appointment'}
           </button>
         </div>
       </form>

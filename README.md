@@ -148,6 +148,10 @@ The customer's ID number is stored but never returned by the API.
 
 Configuration is validated at startup; the process exits with a clear message if a value is invalid.
 
+## Branding and assets
+
+The UI is themed on the Capitec mark: navy `#00466f` and red `#e73934`, sampled directly from the supplied logo. `client/public/logo.png` is the source logo with its background removed (flood-filled, not colour-keyed, so the white gap in the mark itself is preserved); the favicon and PWA icon set in the same folder were generated from it. If the logo changes, regenerate the icon set rather than hand-editing the PNGs — see the git history for the generation script if needed.
+
 ## Project layout
 
 ```

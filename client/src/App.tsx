@@ -13,19 +13,24 @@ export default function App() {
         Skip to content
       </a>
       <header className="masthead">
-        <Link to="/" className="masthead__brand">
-          <span className="masthead__mark" aria-hidden="true" />
-          Branch appointments
-        </Link>
-        <nav className="masthead__nav" aria-label="Primary">
-          <NavLink to="/" end>
-            Book
-          </NavLink>
-          <NavLink to="/appointments">Find a booking</NavLink>
-          <NavLink to="/admin/analytics" className="masthead__staff">
-            Staff
-          </NavLink>
-        </nav>
+        <div className="masthead__inner">
+          <Link to="/" className="masthead__brand">
+            <img src="/logo.png" alt="Capitec" className="masthead__logo" width={134} height={73} />
+            <span className="masthead__wordmark">
+              <strong>Capitec</strong>
+              <span>Branch appointments</span>
+            </span>
+          </Link>
+          <nav className="masthead__nav" aria-label="Primary">
+            <NavLink to="/" end>
+              Book
+            </NavLink>
+            <NavLink to="/appointments">Find a booking</NavLink>
+            <NavLink to="/admin/analytics" className={({ isActive }) => `masthead__staff ${isActive ? 'active' : ''}`}>
+              Staff
+            </NavLink>
+          </nav>
+        </div>
       </header>
       <main id="main">
         <Routes>

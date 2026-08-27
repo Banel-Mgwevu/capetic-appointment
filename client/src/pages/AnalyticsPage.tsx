@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarList } from '../components/BarList';
+import { Spinner } from '../components/Spinner';
 import { Notice } from '../components/Notice';
 import { api, ApiError } from '../lib/api';
 import { formatShortDate } from '../lib/dates';
@@ -54,7 +55,8 @@ export function AnalyticsPage() {
   }
   if (!data) {
     return (
-      <div className="page">
+      <div className="page page--loading">
+        <Spinner />
         <p className="muted">Loading analytics…</p>
       </div>
     );

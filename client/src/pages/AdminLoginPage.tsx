@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Field } from '../components/Field';
 import { Notice } from '../components/Notice';
+import { Spinner } from '../components/Spinner';
 import { api, ApiError } from '../lib/api';
 import { storeAdminToken } from '../lib/session';
 
@@ -55,7 +56,8 @@ export function AdminLoginPage() {
         </Field>
         <div className="step__actions">
           <button type="submit" className="button button--primary" disabled={submitting}>
-            {submitting ? 'Signing in…' : 'Sign in'}
+            {submitting && <Spinner />}
+            {submitting ? 'Signing in' : 'Sign in'}
           </button>
         </div>
       </form>

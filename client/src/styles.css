@@ -2,20 +2,27 @@
    Tokens
    ------------------------------------------------------------------ */
 :root {
-  --ink: #0f1e33;
-  --ink-2: #3b4a62;
-  --ink-3: #6b7890;
-  --bg: #edf1f5;
+  --ink: #0d2233;
+  --ink-2: #3c5468;
+  --ink-3: #6d8494;
+  --bg: #eef2f5;
   --surface: #ffffff;
-  --surface-2: #f6f8fa;
-  --line: #d3dae3;
-  --line-strong: #a9b4c4;
-  --accent: #1c7c54;
-  --accent-soft: #e2f3ea;
-  --danger: #b42318;
-  --danger-soft: #fceceb;
-  --info-soft: #e8eef8;
-  --focus: #2f6fd6;
+  --surface-2: #f4f7f9;
+  --line: #d7dee4;
+  --line-strong: #aebbc7;
+
+  /* Brand, sampled from the mark: deep navy + signal red. */
+  --brand-navy: #00466f;
+  --brand-navy-dark: #063352;
+  --brand-red: #e73934;
+
+  --accent: var(--brand-navy);
+  --accent-soft: #e4edf3;
+  --stamp: var(--brand-red);
+  --danger: #a4241d;
+  --danger-soft: #fbeceb;
+  --info-soft: #e9f0f6;
+  --focus: #1f7ec2;
 
   --font-display: 'Sora', system-ui, -apple-system, sans-serif;
   --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
@@ -23,7 +30,7 @@
 
   --radius: 10px;
   --radius-sm: 6px;
-  --shadow: 0 1px 2px rgba(15, 30, 51, 0.06), 0 8px 24px -12px rgba(15, 30, 51, 0.25);
+  --shadow: 0 1px 2px rgba(13, 34, 51, 0.06), 0 8px 24px -12px rgba(13, 34, 51, 0.28);
   --max-width: 1080px;
 }
 
@@ -109,42 +116,73 @@ textarea {
 }
 
 .masthead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 14px 24px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.masthead::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand-navy) 0%, var(--brand-navy) 55%, var(--brand-red) 100%);
+}
+
+.masthead__inner {
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 20px 24px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .masthead__brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.masthead__logo {
+  height: 30px;
+  width: auto;
+  display: block;
+}
+
+.masthead__wordmark {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.masthead__wordmark strong {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.05rem;
+  letter-spacing: -0.01em;
   color: var(--ink);
-  text-decoration: none;
 }
 
-.masthead__mark {
-  width: 14px;
-  height: 22px;
-  background: var(--ink);
-  border-radius: 3px 3px 7px 7px;
-  position: relative;
-}
-.masthead__mark::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
-  height: 3px;
-  background: var(--accent);
-  border-radius: 2px;
+.masthead__wordmark span {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
 }
 
 .masthead__nav {
@@ -157,9 +195,10 @@ textarea {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   font-weight: 500;
+  font-size: 0.92rem;
 }
 .masthead__nav a:hover {
-  background: rgba(15, 30, 51, 0.06);
+  background: rgba(13, 34, 51, 0.06);
 }
 .masthead__nav a.active {
   color: var(--ink);
@@ -170,15 +209,16 @@ textarea {
 main {
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 8px 24px 64px;
+  padding: 28px 24px 64px;
 }
 
 .footer {
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 0 24px 40px;
+  padding: 20px 24px 40px;
   color: var(--ink-3);
   font-size: 0.85rem;
+  border-top: 1px solid var(--line);
 }
 
 .page--narrow {
@@ -465,6 +505,18 @@ button.stepper__button:hover {
   position: relative;
   overflow: hidden;
 }
+.ticket::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--brand-navy) 0%, var(--brand-navy) 60%, var(--brand-red) 100%);
+}
+.ticket--cancelled::before {
+  background: var(--line-strong);
+}
 
 .ticket__head {
   padding: 18px 20px 16px;
@@ -479,6 +531,7 @@ button.stepper__button:hover {
   letter-spacing: 0.1em;
   color: var(--ink-3);
   font-weight: 600;
+  max-width: calc(100% - 92px);
 }
 
 .ticket__reference {
@@ -502,16 +555,16 @@ button.stepper__button:hover {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--accent);
-  border: 2px solid var(--accent);
+  color: var(--stamp);
+  border: 2px solid var(--stamp);
   border-radius: 4px;
   padding: 3px 8px;
-  opacity: 0.9;
+  opacity: 0.92;
   animation: stamp-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 .ticket--cancelled .ticket__stamp {
-  color: var(--danger);
-  border-color: var(--danger);
+  color: var(--ink-3);
+  border-color: var(--ink-3);
 }
 .ticket--cancelled .ticket__reference {
   text-decoration: line-through;
@@ -754,7 +807,7 @@ button.stepper__button:hover {
   color: var(--ink-2);
 }
 .notice--success {
-  background: var(--accent-soft);
+  background: #e8f4ee;
   border-color: #b6dfc9;
   color: #135a3c;
 }
@@ -984,7 +1037,7 @@ button.stepper__button:hover {
 }
 .barlist__row {
   display: grid;
-  grid-template-columns: 120px 1fr auto;
+  grid-template-columns: minmax(96px, 148px) 1fr auto;
   gap: 10px;
   align-items: center;
   font-size: 0.9rem;
@@ -1027,4 +1080,145 @@ button.stepper__button:hover {
   margin-left: 4px;
   color: var(--ink-3) !important;
   font-size: 0.85rem;
+}
+
+/* ------------------------------------------------------------------
+   Loading states: skeletons and spinner
+   ------------------------------------------------------------------ */
+.page--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 40vh;
+  color: var(--ink-3);
+}
+.page--loading .spinner {
+  width: 28px;
+  height: 28px;
+  color: var(--brand-navy);
+}
+
+.skeleton-list {
+  display: grid;
+  gap: 10px;
+}
+.skeleton-row {
+  border-radius: var(--radius);
+  background: linear-gradient(100deg, var(--surface-2) 30%, #eef2f5 45%, var(--surface-2) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border: 1px solid var(--line);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.button .spinner {
+  color: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-row {
+    animation: none;
+    background: var(--surface-2);
+  }
+  .spinner {
+    animation-duration: 1.4s;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Step transition
+   ------------------------------------------------------------------ */
+.step {
+  animation: step-in 0.22s ease both;
+}
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ------------------------------------------------------------------
+   Notice icons
+   ------------------------------------------------------------------ */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.notice__icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+.notice__icon svg {
+  width: 100%;
+  height: 100%;
+}
+.notice__body {
+  flex: 1;
+}
+.notice--error .notice__icon {
+  color: var(--danger);
+}
+.notice--info .notice__icon {
+  color: var(--brand-navy);
+}
+.notice--success .notice__icon {
+  color: #146c43;
+}
+
+/* ------------------------------------------------------------------
+   Stat cards: alternating brand accent so the dashboard doesn't read
+   as identical white boxes
+   ------------------------------------------------------------------ */
+.stat-card {
+  position: relative;
+  padding-left: 22px;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand-navy);
+}
+.stat-card:nth-child(2)::before {
+  background: var(--brand-red);
+}
+.stat-card:nth-child(3)::before {
+  background: var(--brand-red);
+}
+.stat-card:nth-child(4)::before {
+  background: var(--brand-navy);
 }

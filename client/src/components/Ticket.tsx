@@ -31,7 +31,7 @@ export function Ticket({ service, branch, slot, customerName, reference, status,
   return (
     <aside className={`ticket ticket--${status?.toLowerCase() ?? 'draft'}`} aria-label="Appointment summary">
       <div className="ticket__head">
-        <span className="ticket__eyebrow">Branch appointment</span>
+        <span className="ticket__eyebrow">Capitec branch appointment</span>
         {reference ? (
           <span className="ticket__reference" aria-label={`Reference ${reference}`}>
             {reference}

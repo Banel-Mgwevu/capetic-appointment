@@ -4,6 +4,8 @@ import { Field } from '../components/Field';
 import { Notice } from '../components/Notice';
 import { SlotGrid } from '../components/SlotGrid';
 import { Stepper, type StepDefinition } from '../components/Stepper';
+import { Skeleton } from '../components/Skeleton';
+import { Spinner } from '../components/Spinner';
 import { Ticket } from '../components/Ticket';
 import { api, ApiError } from '../lib/api';
 import { storeAppointmentToken } from '../lib/session';
@@ -212,7 +214,7 @@ export function BookingPage() {
                 What do you need help with?
               </h1>
               {services.length === 0 ? (
-                <p className="muted">Loading services…</p>
+                <Skeleton rows={4} rowHeight={84} />
               ) : (
                 <ul className="choices">
                   {services.map((s) => (
@@ -411,7 +413,8 @@ export function BookingPage() {
 
               <div className="step__actions">
                 <button type="submit" className="button button--primary" disabled={submitting}>
-                  {submitting ? 'Confirming…' : 'Confirm appointment'}
+                  {submitting && <Spinner />}
+                  {submitting ? 'Confirming' : 'Confirm appointment'}
                 </button>
               </div>
             </form>
