@@ -31,6 +31,15 @@ const configSchema = z.object({
   ADMIN_MAX_LOGIN_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
   /** How long an account stays locked after hitting the attempt limit. */
   ADMIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
+  /**
+   * Escape hatch for a locked-out or forgotten admin, on platforms with no
+   * shell access to run `create-staff-user` directly. If BOTH are set, the
+   * named account's password is forcibly reset (or the account created) on
+   * every server start -- including restarts you didn't intend as a reset.
+   * Remove both after using this once; see README "Recovering admin access".
+   */
+  EMERGENCY_ADMIN_USERNAME: z.string().min(1).optional(),
+  EMERGENCY_ADMIN_PASSWORD: z.string().min(8).optional(),
 
   /** How long a cancelled/completed booking's personal details are kept before anonymisation. */
   DATA_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),

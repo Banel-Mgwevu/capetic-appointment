@@ -13,6 +13,7 @@ import { JobLockRepository } from './repositories/jobLockRepository.js';
 import { ReminderService } from './services/reminderService.js';
 import { RetentionService } from './services/retentionService.js';
 import { bootstrapStaffUsers } from './services/staffBootstrap.js';
+import { hashPassword } from './domain/password.js';
 import { SimulatedNotifier } from './services/notifications/simulatedNotifier.js';
 
 const config = loadConfig();
@@ -24,7 +25,19 @@ if (applied.length > 0) logger.info({ applied }, 'migrations applied');
 const seeded = seed(db);
 if (seeded.branches || seeded.services) logger.info(seeded, 'reference data seeded');
 
-await bootstrapStaffUsers(new StaffUserRepository(db), config, logger);
+const staffUsers = new StaffUserRepository(db);
+await bootstrapStaffUsers(staffUsers, config, logger);
+
+if (config.EMERGENCY_ADMIN_USERNAME && config.EMERGENCY_ADMIN_PASSWORD) {
+  const hash = await hashPassword(config.EMERGENCY_ADMIN_PASSWORD);
+  staffUsers.upsert(config.EMERGENCY_ADMIN_USERNAME, hash, new Date().toISOString());
+  logger.warn(
+    { username: config.EMERGENCY_ADMIN_USERNAME },
+    'EMERGENCY_ADMIN_USERNAME/EMERGENCY_ADMIN_PASSWORD are set: that account was just forcibly reset. ' +
+      'Remove both environment variables now and redeploy -- otherwise this reset repeats on every restart, ' +
+      'silently undoing any password change made through the app afterward.',
+  );
+}
 
 const app = createApp({ config, db, logger });
 

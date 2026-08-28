@@ -147,3 +147,30 @@ describe('POST /api/admin/staff-users', () => {
     expect(entry).toMatchObject({ targetType: 'staff_user', targetId: 'sarah' });
   });
 });
+
+describe('emergency admin reset (config-driven bootstrap)', () => {
+  beforeEach(async () => {
+    ctx = await createTestContext();
+  });
+
+  it('forcibly resets an existing account and clears any lockout', async () => {
+    const { StaffUserRepository } = await import('../src/repositories/staffUserRepository.js');
+    const { hashPassword } = await import('../src/domain/password.js');
+
+    const staffUsers = new StaffUserRepository(ctx.db);
+    // Simulate a locked-out existing account with a forgotten password.
+    staffUsers.upsert('admin', await hashPassword('old-forgotten-password'), new Date().toISOString());
+    const account = staffUsers.findByUsername('admin');
+    staffUsers.recordFailedAttempt(account!.id, 5, new Date(ctx.now.getTime() + 900_000).toISOString());
+    expect((await login('old-forgotten-password')).status).toBe(409); // locked
+
+    // This is the exact call index.ts makes when EMERGENCY_ADMIN_USERNAME/PASSWORD are set.
+    staffUsers.upsert('admin', await hashPassword('Tryagain@147'), new Date().toISOString());
+
+    const oldPassword = await login('old-forgotten-password');
+    expect(oldPassword.status).toBe(400); // no longer valid, and no longer locked either -- a clean rejection
+
+    const newPassword = await login('Tryagain@147');
+    expect(newPassword.status).toBe(200);
+  });
+});

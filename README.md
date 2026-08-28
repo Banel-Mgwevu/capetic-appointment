@@ -207,6 +207,7 @@ The customer's ID number is stored but never returned by the API.
 | `ADMIN_PASSWORD` | `changeme123` | Dev-only bootstrap fallback used when `ADMIN_PASSWORD_HASH` is unset (logs a startup warning) |
 | `ADMIN_MAX_LOGIN_ATTEMPTS` | `5` | Failed logins before an account is temporarily locked |
 | `ADMIN_LOCKOUT_MINUTES` | `15` | How long an account stays locked after hitting the attempt limit |
+| `EMERGENCY_ADMIN_USERNAME` / `EMERGENCY_ADMIN_PASSWORD` | unset | Set both to forcibly reset that account's password on next boot. See "Recovering admin access" below. **Remove after use.** |
 | `DATA_RETENTION_DAYS` | `90` | How long after a booking's date its personal fields are kept before anonymisation |
 | `RETENTION_CHECK_INTERVAL_HOURS` | `24` | How often the retention sweep runs in the background. `0` disables it |
 | `REMINDER_CHECK_INTERVAL_MINUTES` | `60` | How often the day-before reminder sweep runs. `0` disables it |
@@ -221,6 +222,14 @@ Configuration is validated at startup; the process exits with a clear message if
 - **Don't set `PORT` yourself** — most platforms inject it, and the app already reads `process.env.PORT`.
 - **SQLite needs a persistent disk.** Without one, `DATABASE_PATH` is wiped on every deploy. Mount a disk (e.g. `/var/data`) and point `DATABASE_PATH` at a file inside it.
 - **Mounted disks arrive owned by root**, but the container runs the app as an unprivileged `node` user for security. A plain build-time `USER node`/`chown` can't fix this, since the disk is only mounted at container *start*, after the image was built. `docker-entrypoint.sh` runs as root first, `chown`s the database directory, then drops to `node` (via `gosu`) to actually run the app — this is the same pattern the official Postgres/MySQL images use. If you see `EACCES: permission denied, mkdir '/var/data'` in your platform's logs, this is what fixes it; it's already wired into the Dockerfile.
+
+### Recovering admin access
+
+Staff passwords live in the database, not in an env var, so changing `ADMIN_PASSWORD_HASH` in your platform's dashboard **does nothing** once at least one staff account already exists — it's a bootstrap value, only ever read on a completely empty database (see "Staff tools" above). If you're locked out (five wrong attempts locks an account for 15 minutes) or have genuinely forgotten a password, in order of preference:
+
+1. **Have a shell?** `npm run create-staff-user -w server -- <username> <password>` against the live database.
+2. **No shell, but another account still works?** Sign in with it, then call `POST /admin/staff-users` with its token to reset the locked/forgotten one (exact `curl` commands in `.env.render.example`).
+3. **No shell, and no working login at all?** Set both `EMERGENCY_ADMIN_USERNAME` and `EMERGENCY_ADMIN_PASSWORD` in your platform's dashboard and redeploy. On the next boot, that account's password is forcibly reset (and any lockout cleared) — no shell or `curl` needed, just a redeploy. **Remove both variables again immediately after and redeploy once more.** Leaving them set means every future restart repeats the reset, silently undoing any password change made through the app afterward — a real footgun if forgotten, so the server logs a loud warning every time it fires as a reminder.
 
 ## Branding and assets
 
