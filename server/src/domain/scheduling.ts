@@ -8,6 +8,23 @@ export interface OpeningWindow {
 /** Keyed by weekday number as a string ("0" = Sunday … "6" = Saturday). Missing = closed. */
 export type OpeningHours = Partial<Record<'0' | '1' | '2' | '3' | '4' | '5' | '6', OpeningWindow>>;
 
+/**
+ * Zod's `.optional()` types each weekday as `OpeningWindow | undefined`
+ * (the key can be present *and* explicitly undefined); this domain type
+ * instead means "the key is simply absent when closed". Written as a plain
+ * loop with an explicit return type rather than a generic mapped-type
+ * transform, since the two shapes are subtly different under
+ * `exactOptionalPropertyTypes` and generic inference kept losing that
+ * distinction.
+ */
+export function cleanOpeningHours(input: Record<string, OpeningWindow | undefined>): OpeningHours {
+  const result: OpeningHours = {};
+  for (const [day, window] of Object.entries(input)) {
+    if (window) result[day as keyof OpeningHours] = window;
+  }
+  return result;
+}
+
 export interface Slot {
   startsAt: LocalDateTime;
   endsAt: LocalDateTime;

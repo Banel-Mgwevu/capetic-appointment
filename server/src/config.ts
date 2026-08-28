@@ -18,14 +18,19 @@ const configSchema = z.object({
   BOOKING_MIN_LEAD_MINUTES: z.coerce.number().int().min(0).max(24 * 60).default(30),
   /** Secret used to sign customer-access and admin session tokens. */
   AUTH_SECRET: z.string().min(16).default('dev-only-secret-change-me-please-32chars'),
-  ADMIN_USERNAME: z.string().min(1).default('admin'),
   /**
-   * Preferred: a scrypt hash produced by `npm run hash-password -w server -- <password>`.
-   * Falls back to plaintext ADMIN_PASSWORD (logged as a startup warning) so local
-   * setup still works without an extra step, but production should always set this.
+   * Used only to bootstrap the *first* staff account on a fresh database
+   * (see StaffUserRepository / app.ts). Once at least one row exists in
+   * `staff_users`, these env vars are ignored entirely -- accounts are
+   * managed with `npm run create-staff-user -w server -- <username> <password>`.
    */
+  ADMIN_USERNAME: z.string().min(1).default('admin'),
   ADMIN_PASSWORD_HASH: z.string().optional(),
   ADMIN_PASSWORD: z.string().min(1).default('changeme123'),
+  /** Failed admin logins before an account is temporarily locked. */
+  ADMIN_MAX_LOGIN_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
+  /** How long an account stays locked after hitting the attempt limit. */
+  ADMIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
 
   /** How long a cancelled/completed booking's personal details are kept before anonymisation. */
   DATA_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),

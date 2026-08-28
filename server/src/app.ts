@@ -12,6 +12,8 @@ import { AnalyticsRepository } from './repositories/analyticsRepository.js';
 import { AppointmentRepository } from './repositories/appointmentRepository.js';
 import { AuditLogRepository } from './repositories/auditLogRepository.js';
 import { OtpRepository } from './repositories/otpRepository.js';
+import { StaffUserRepository } from './repositories/staffUserRepository.js';
+import { JobLockRepository } from './repositories/jobLockRepository.js';
 import { BranchRepository } from './repositories/branchRepository.js';
 import { NotificationRepository } from './repositories/notificationRepository.js';
 import { ServiceRepository } from './repositories/serviceRepository.js';
@@ -24,6 +26,7 @@ import type { Notifier } from './services/notifications/notifier.js';
 import { SimulatedNotifier } from './services/notifications/simulatedNotifier.js';
 import { errorHandler, notFoundHandler } from './http/middleware/errorHandler.js';
 import { adminRouter } from './http/routes/admin.js';
+import { adminCatalogRouter } from './http/routes/adminCatalog.js';
 import { analyticsRouter } from './http/routes/analytics.js';
 import { appointmentsRouter } from './http/routes/appointments.js';
 import { authRouter } from './http/routes/auth.js';
@@ -52,19 +55,23 @@ export function createApp({ config, db, logger, notifier, clock = () => new Date
   const analyticsRepo = new AnalyticsRepository(db);
   const auditLogRepo = new AuditLogRepository(db);
   const otpRepo = new OtpRepository(db);
+  const staffUserRepo = new StaffUserRepository(db);
+  const jobLockRepo = new JobLockRepository(db);
 
   const auth = new AuthService({
     appointments: appointmentRepo,
+    staffUsers: staffUserRepo,
     secret: config.AUTH_SECRET,
-    adminUsername: config.ADMIN_USERNAME,
-    adminPasswordHash: config.ADMIN_PASSWORD_HASH,
-    adminPassword: config.ADMIN_PASSWORD,
+    maxLoginAttempts: config.ADMIN_MAX_LOGIN_ATTEMPTS,
+    lockoutMinutes: config.ADMIN_LOCKOUT_MINUTES,
     logger,
+    clock,
   });
   const analytics = new AnalyticsService(analyticsRepo, clock);
   const otp = new OtpService({ otps: otpRepo, secret: config.AUTH_SECRET, logger, clock, onCodeGenerated: onOtpCode });
   const retention = new RetentionService({
     appointments: appointmentRepo,
+    locks: jobLockRepo,
     retentionDays: config.DATA_RETENTION_DAYS,
     logger,
     clock,
@@ -136,7 +143,10 @@ export function createApp({ config, db, logger, notifier, clock = () => new Date
   api.use(authRouter({ auth, auditLog: auditLogRepo, rateLimiting: config.NODE_ENV !== 'test', clock }));
   api.use(customersRouter({ appointments, otp, auth, rateLimiting: config.NODE_ENV !== 'test' }));
   api.use(analyticsRouter({ analytics, auth }));
-  api.use(adminRouter({ appointments, auth, auditLog: auditLogRepo, retention, clock }));
+  api.use(
+    adminRouter({ appointments, auth, auditLog: auditLogRepo, retention, clock, rateLimiting: config.NODE_ENV !== 'test' }),
+  );
+  api.use(adminCatalogRouter({ branches, services, auth, auditLog: auditLogRepo, clock }));
   api.use(notFoundHandler);
   app.use('/api', api);
 

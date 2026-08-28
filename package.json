@@ -16,7 +16,7 @@
     "start": "node server/dist/index.js",
     "test": "npm run test -w server && npm run test -w client",
     "pretest:e2e": "node -e \"const fs=require('fs');fs.rmSync('e2e/.tmp',{recursive:true,force:true});fs.mkdirSync('e2e/.tmp',{recursive:true});\"",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run pretest:e2e && playwright test",
     "test:e2e:ui": "playwright test --ui",
     "lint": "npm run lint -w server && npm run lint -w client",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client",

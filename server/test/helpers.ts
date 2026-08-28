@@ -6,6 +6,8 @@ import { normaliseContact } from '../src/domain/customer.js';
 import { openDatabase, type Db } from '../src/db/connection.js';
 import { migrate } from '../src/db/migrate.js';
 import { seed } from '../src/db/seed.js';
+import { StaffUserRepository } from '../src/repositories/staffUserRepository.js';
+import { bootstrapStaffUsers } from '../src/services/staffBootstrap.js';
 
 export interface TestContext {
   app: Express;
@@ -23,8 +25,10 @@ export interface TestContext {
 /**
  * Fresh in-memory database and app per test, with a fixed clock:
  * Wednesday 2 September 2026, 10:00 in Africa/Johannesburg (08:00 UTC).
+ * Async because it also bootstraps the first staff account (admin /
+ * test-admin-password), which requires hashing a password.
  */
-export function createTestContext(overrides: Partial<Record<string, string>> = {}): TestContext {
+export async function createTestContext(overrides: Partial<Record<string, string>> = {}): Promise<TestContext> {
   const config = loadConfig({
     NODE_ENV: 'test',
     DATABASE_PATH: ':memory:',
@@ -37,6 +41,9 @@ export function createTestContext(overrides: Partial<Record<string, string>> = {
   const db = openDatabase(':memory:');
   migrate(db);
   seed(db);
+
+  const logger = pino({ level: 'silent' });
+  await bootstrapStaffUsers(new StaffUserRepository(db), config, logger, () => new Date('2026-09-02T08:00:00Z'));
 
   const otpCodes = new Map<string, string>();
 
@@ -56,7 +63,7 @@ export function createTestContext(overrides: Partial<Record<string, string>> = {
   context.app = createApp({
     config,
     db,
-    logger: pino({ level: 'silent' }),
+    logger,
     clock: () => context.now,
     onOtpCode: (contact, code) => otpCodes.set(contact, code),
   });

@@ -1,10 +1,11 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import type { z } from 'zod';
 import type { AuditLogRepository } from '../../repositories/auditLogRepository.js';
 import type { AppointmentService } from '../../services/appointmentService.js';
 import type { AuthService } from '../../services/authService.js';
 import type { RetentionService } from '../../services/retentionService.js';
-import { auditLogQuery, referenceParams, rescheduleBody } from '../schemas.js';
+import { auditLogQuery, referenceParams, rescheduleBody, staffUserBody } from '../schemas.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { validate, validated } from '../middleware/validate.js';
 import { toResponse } from './appointments.js';
@@ -15,6 +16,7 @@ interface Deps {
   auditLog: AuditLogRepository;
   retention: RetentionService;
   clock: () => Date;
+  rateLimiting: boolean;
 }
 
 /**
@@ -25,9 +27,21 @@ interface Deps {
  * customer's personal details, so the log itself doesn't become a new place
  * PII leaks from.
  */
-export function adminRouter({ appointments, auth, auditLog, retention, clock }: Deps): Router {
+export function adminRouter({ appointments, auth, auditLog, retention, clock, rateLimiting }: Deps): Router {
   const router = Router();
   const requireStaff = requireAdmin(auth);
+
+  // Creating an account is already gated behind an existing admin session,
+  // but still rate-limited: a compromised admin token shouldn't be able to
+  // spray new accounts or password resets without limit.
+  const staffUserLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    skip: () => !rateLimiting,
+    message: { error: { code: 'RATE_LIMITED', message: 'Too many attempts. Please try again later.' } },
+  });
 
   const record = (
     req: { ip?: string | undefined },
@@ -106,6 +120,34 @@ export function adminRouter({ appointments, auth, auditLog, retention, clock }: 
     });
     res.json({ redactedCount: count });
   });
+
+  // Lets an already-signed-in admin create the next staff account, or reset
+  // one's password, entirely through the app -- no shell/CLI access to the
+  // server needed, which matters on platforms (like Render's free tier)
+  // that don't offer one.
+  router.post(
+    '/admin/staff-users',
+    requireStaff,
+    staffUserLimiter,
+    validate('body', staffUserBody),
+    (req, res, next) => {
+      const { username, password } = validated<z.infer<typeof staffUserBody>>(res, 'body');
+      auth
+        .createOrResetStaffUser(username, password)
+        .then(({ created }) => {
+          auditLog.record({
+            actor: res.locals.adminUsername as string,
+            action: created ? 'STAFF_USER_CREATED' : 'STAFF_USER_PASSWORD_RESET',
+            targetType: 'staff_user',
+            targetId: username,
+            ip: req.ip ?? null,
+            createdAt: clock().toISOString(),
+          });
+          res.status(created ? 201 : 200).json({ username, created });
+        })
+        .catch(next);
+    },
+  );
 
   return router;
 }

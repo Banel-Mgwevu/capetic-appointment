@@ -27,6 +27,25 @@ export interface Service {
   durationMinutes: number;
 }
 
+export interface BranchInput {
+  name: string;
+  city: string;
+  address: string;
+  slotMinutes: number;
+  capacity: number;
+  openingHours: Partial<Record<Weekday, OpeningWindow>>;
+}
+
+export type BranchUpdateInput = Partial<BranchInput>;
+
+export interface ServiceInput {
+  name: string;
+  description: string;
+  durationMinutes: number;
+}
+
+export type ServiceUpdateInput = Partial<ServiceInput>;
+
 export interface Slot {
   startsAt: string;
   endsAt: string;

@@ -11,9 +11,18 @@ export function uniqueCustomer() {
   };
 }
 
-function tomorrowIso(): string {
+/**
+ * A date at least `minDaysAhead` days out that isn't a Sunday (Sandton City,
+ * used throughout these specs, is closed Sundays per the seed data) --
+ * avoids tests going flaky depending on which day of the week they happen to
+ * run on.
+ */
+export function nextOpenWeekdayIso(minDaysAhead: number): string {
   const d = new Date();
-  d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + minDaysAhead);
+  while (d.getDay() === 0) {
+    d.setDate(d.getDate() + 1);
+  }
   return d.toISOString().slice(0, 10);
 }
 
@@ -33,7 +42,7 @@ export async function bookAppointment(
   await page.goto('/');
   await page.getByText(serviceName, { exact: false }).first().click();
   await page.getByText(branchName, { exact: false }).first().click();
-  await page.locator('input[type="date"]').fill(tomorrowIso());
+  await page.locator('input[type="date"]').fill(nextOpenWeekdayIso(1));
   await page.locator('.slot:not(:disabled)').first().click();
   await page.getByRole('button', { name: 'Continue' }).click();
 

@@ -8,8 +8,11 @@ import { AppointmentRepository } from './repositories/appointmentRepository.js';
 import { BranchRepository } from './repositories/branchRepository.js';
 import { NotificationRepository } from './repositories/notificationRepository.js';
 import { ServiceRepository } from './repositories/serviceRepository.js';
+import { StaffUserRepository } from './repositories/staffUserRepository.js';
+import { JobLockRepository } from './repositories/jobLockRepository.js';
 import { ReminderService } from './services/reminderService.js';
 import { RetentionService } from './services/retentionService.js';
+import { bootstrapStaffUsers } from './services/staffBootstrap.js';
 import { SimulatedNotifier } from './services/notifications/simulatedNotifier.js';
 
 const config = loadConfig();
@@ -21,6 +24,8 @@ if (applied.length > 0) logger.info({ applied }, 'migrations applied');
 const seeded = seed(db);
 if (seeded.branches || seeded.services) logger.info(seeded, 'reference data seeded');
 
+await bootstrapStaffUsers(new StaffUserRepository(db), config, logger);
+
 const app = createApp({ config, db, logger });
 
 // Background jobs share the same database and a small set of repositories,
@@ -31,9 +36,16 @@ const services = new ServiceRepository(db);
 const appointments = new AppointmentRepository(db);
 const notifications = new NotificationRepository(db);
 const notifier = new SimulatedNotifier(notifications, logger);
+const jobLocks = new JobLockRepository(db);
 
-const retention = new RetentionService({ appointments, retentionDays: config.DATA_RETENTION_DAYS, logger, clock: () => new Date() });
-const reminder = new ReminderService({ appointments, branches, services, notifier, logger, clock: () => new Date() });
+const retention = new RetentionService({
+  appointments,
+  locks: jobLocks,
+  retentionDays: config.DATA_RETENTION_DAYS,
+  logger,
+  clock: () => new Date(),
+});
+const reminder = new ReminderService({ appointments, branches, services, locks: jobLocks, notifier, logger, clock: () => new Date() });
 
 const timers: NodeJS.Timeout[] = [];
 if (config.RETENTION_CHECK_INTERVAL_HOURS > 0) {

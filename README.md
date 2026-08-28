@@ -104,7 +104,23 @@ Rescheduling (`POST /appointments/:reference/reschedule`) moves a confirmed appo
 
 ### Staff tools and the audit trail
 
-Signed in separately from customers (`POST /auth/login`, `ADMIN_USERNAME`/`ADMIN_PASSWORD_HASH`), staff can look up, cancel, or reschedule any booking by reference alone, for example while on the phone with a customer — no contact verification needed, since the admin session already establishes who's asking. Every staff **login (success or failure), lookup, cancel, or reschedule** is written to an append-only `audit_log` table (`AuditLogRepository`) with the actor, action, and booking reference, viewable at `/admin/audit-log`. Deliberately excluded from the log: customers acting on their own bookings (already visible via the booking's own status and notification history), and anything containing personal data — the log itself is a POPIA-relevant artifact, so it only ever stores booking references, never names, emails, or phone numbers.
+Signed in separately from customers (`POST /auth/login`), staff can look up, cancel, or reschedule any booking by reference alone, for example while on the phone with a customer — no contact verification needed, since the admin session already establishes who's asking. Every staff **login (success or failure), lookup, cancel, or reschedule** is written to an append-only `audit_log` table (`AuditLogRepository`) with the actor, action, and booking reference, viewable at `/admin/audit-log`. Deliberately excluded from the log: customers acting on their own bookings (already visible via the booking's own status and notification history), and anything containing personal data — the log itself is a POPIA-relevant artifact, so it only ever stores booking references, never names, emails, or phone numbers.
+
+Staff accounts are per-person (`staff_users` table), not one shared login, so the audit trail attributes actions to an actual account rather than "admin" for everyone. Manage accounts with:
+
+```bash
+npm run create-staff-user -w server -- <username> <password>   # creates, or resets the password if the username exists
+```
+
+The same operation is also available as an authenticated API call (`POST /admin/staff-users`, requires an existing admin token) — useful on platforms without shell access to the running server, since an already-signed-in admin can create the next account through the app itself rather than needing to run a CLI command against the live database.
+
+Branches and services were otherwise pure seed data with no admin UI, meaning a new branch or a change in opening hours needed a code change and redeploy. `/admin/manage` fixes that: create or edit branches (including a per-weekday opening-hours editor) and services directly, each change logged the same way as everything else under `/admin`.
+
+### Frontend resilience
+
+A React error boundary wraps the routed page content (not the header/footer, so navigation still works if a page crashes), keyed by the current path so navigating away from a broken page recovers cleanly rather than staying stuck on the fallback. Covered by `ErrorBoundary.test.tsx`.
+
+On a fresh database, the *first* account is bootstrapped automatically from `ADMIN_USERNAME`/`ADMIN_PASSWORD_HASH` (or the dev-only `ADMIN_PASSWORD` fallback) so an existing deployment's env vars keep working with no manual step — after that, those env vars are never consulted again. Five failed logins against one account lock it for 15 minutes (`ADMIN_MAX_LOGIN_ATTEMPTS`/`ADMIN_LOCKOUT_MINUTES`), independent of the per-IP rate limiter, so brute-forcing one person's password doesn't work just by spreading attempts across source IPs. An unknown username is rejected with the same generic message and roughly the same response time as a wrong password, so the login endpoint can't be used to enumerate valid staff usernames.
 
 ### "My appointments" and data retention (POPIA)
 
@@ -120,7 +136,7 @@ There are no customer accounts. Instead:
 
 - **Booking lookup** requires proving you know the reference *and* the email or phone on the booking (`POST /appointments/:reference/access`). A correct match returns a signed, 30-minute access token; the frontend stores it in `sessionStorage` and sends it as `Authorization: Bearer <token>` on every request for that booking. Right after you book, a token is issued automatically so you land on your confirmation page without a separate sign-in step.
 - **Branch search** on the "Which branch suits you?" step is a client-side filter over name, suburb and city -- there is no separate search endpoint, since the branch list is already small and fully returned.
-- **Staff analytics** (`/admin/analytics`) is protected separately: sign in at `/admin/login` with `ADMIN_USERNAME` / `ADMIN_PASSWORD` (see Configuration) to get an 8-hour admin token, then view booking totals, per-branch and per-service breakdowns, a day-by-day trend, and the busiest hour, over a 7/30/90-day range.
+- **Staff analytics** (`/admin/analytics`) is protected separately: sign in at `/admin/login` with a staff account (see above) to get an 8-hour admin token, then view booking totals, per-branch and per-service breakdowns, a day-by-day trend, and the busiest hour, over a 7/30/90-day range.
 
 Both token kinds are short, self-contained, HMAC-signed strings (`domain/token.ts`) rather than a session store or JWT library -- enough for this project's needs without adding a dependency or a stateful session table. See *Production considerations* below for what a real deployment would add on top.
 
@@ -150,6 +166,11 @@ All endpoints are under `/api` and return JSON. Errors have the shape `{ "error"
 | `POST` | `/admin/appointments/:reference/reschedule` | Staff-initiated reschedule. Logged |
 | `GET` | `/admin/audit-log?limit=50` | Recent staff actions |
 | `POST` | `/admin/privacy/purge` | Run the data-retention sweep immediately. Logged |
+| `POST` | `/admin/staff-users` | Create a staff account, or reset an existing one's password/lockout. Admin-only. Logged |
+| `POST` | `/admin/branches` | Create a branch (slug auto-generated). Admin-only. Logged |
+| `PATCH` | `/admin/branches/:id` | Update any subset of a branch's fields, including opening hours. Admin-only. Logged |
+| `POST` | `/admin/services` | Create a service (slug auto-generated, appended to the display order). Admin-only. Logged |
+| `PATCH` | `/admin/services/:id` | Update any subset of a service's fields. Admin-only. Logged |
 
 Example booking:
 
@@ -181,9 +202,11 @@ The customer's ID number is stored but never returned by the API.
 | `BOOKING_HORIZON_DAYS` | `30` | How far ahead bookings are accepted |
 | `BOOKING_MIN_LEAD_MINUTES` | `30` | Minimum notice before a slot |
 | `AUTH_SECRET` | dev default | HMAC signing key for customer-access, contact, and admin tokens. **Set a real random value in production.** |
-| `ADMIN_USERNAME` | `admin` | Staff sign-in username |
-| `ADMIN_PASSWORD_HASH` | unset | Preferred staff password: a scrypt hash from `npm run hash-password -w server -- <password>`. **Set this in production.** |
-| `ADMIN_PASSWORD` | `changeme123` | Dev-only fallback used when `ADMIN_PASSWORD_HASH` is unset (logs a startup warning) |
+| `ADMIN_USERNAME` | `admin` | Bootstraps the *first* staff account on a fresh database only. Ignored once any `staff_users` row exists |
+| `ADMIN_PASSWORD_HASH` | unset | Bootstrap password hash (`npm run hash-password -w server -- <password>`). **Set this in production.** |
+| `ADMIN_PASSWORD` | `changeme123` | Dev-only bootstrap fallback used when `ADMIN_PASSWORD_HASH` is unset (logs a startup warning) |
+| `ADMIN_MAX_LOGIN_ATTEMPTS` | `5` | Failed logins before an account is temporarily locked |
+| `ADMIN_LOCKOUT_MINUTES` | `15` | How long an account stays locked after hitting the attempt limit |
 | `DATA_RETENTION_DAYS` | `90` | How long after a booking's date its personal fields are kept before anonymisation |
 | `RETENTION_CHECK_INTERVAL_HOURS` | `24` | How often the retention sweep runs in the background. `0` disables it |
 | `REMINDER_CHECK_INTERVAL_MINUTES` | `60` | How often the day-before reminder sweep runs. `0` disables it |
@@ -226,7 +249,7 @@ server/
     services/             # use cases: availability, booking/cancel/reschedule, auth, OTP, retention, reminders, analytics
     http/                 # zod schemas, validation + error/auth middleware, routers (appointments, customers, admin, analytics)
   test/                   # unit tests for domain, supertest tests for the API
-  scripts/                # hash-password CLI for generating ADMIN_PASSWORD_HASH
+  scripts/                # hash-password and create-staff-user CLIs for managing admin credentials
 client/
   src/
     pages/                # Booking wizard, confirmation, find/manage, reschedule, my-appointments, admin (login/lookup/audit/analytics), privacy notice
@@ -245,9 +268,11 @@ Things deliberately kept simple for this exercise, and what I would change for a
 
 - **Database.** SQLite is a good fit for a single-instance service and makes the project self-contained. For horizontal scaling I would move to PostgreSQL, keep the same repository interfaces, and enforce capacity with `SELECT … FOR UPDATE` on the branch-day.
 - **Notifications.** Replace `SimulatedNotifier` with an outbox-backed worker so retries and provider failures are handled outside the request path. The OTP delivery path (currently a log line) would move to the same real gateway.
-- **Background jobs.** Retention and reminder sweeps run as `setInterval` timers inside the API process, which is fine for one instance but would double-send or double-purge across multiple replicas. A real deployment would move these to a proper scheduler (e.g. a cron-triggered job or a queue) with a lock, or restrict them to a single designated instance.
-- **Admin accounts.** There is one shared admin/password, not per-staff-member accounts, so the audit log identifies "admin" rather than an individual. A real deployment needs per-user staff logins (and probably SSO) so the audit trail attributes actions to a person.
-- **Admin/branch view** for staff to see the day's appointments and mark arrivals, beyond single-reference lookup.
+- **Background jobs are lock-protected but still single-instance.** `JobLockRepository` stops the retention/reminder sweeps from double-processing if two runs overlap (e.g. the scheduled timer racing a manual "run now" click) — a real bug this closed, not just a theoretical one, since the reminder sweep's "already reminded?" check and the send weren't atomic with each other. What it does *not* do is coordinate across multiple app instances each with their own SQLite file, since Render disks aren't shared storage; the same lock pattern would work correctly unchanged if this ever moves to a real shared database like Postgres with multiple replicas pointed at it.
+- **Admin accounts.** Per-staff accounts with lockout exist, and an admin can create more staff accounts or manage the branch/service catalog through the app itself (no shell access needed). Still missing: SSO and permission tiers (every staff account can currently do everything).
+- **Session storage.** Tokens live in the browser's `sessionStorage` and are attached manually as `Authorization` headers. An `httpOnly` cookie would be safer against any future XSS in the app, at the cost of needing CSRF protection instead.
+- **Rate limiting is in-memory and per-process**, via `express-rate-limit`'s default store. It resets on every restart and doesn't coordinate across multiple instances — fine for one instance, not for a horizontally-scaled deployment, which would need a shared store (e.g. Redis-backed).
 - **Observability.** Request IDs are already propagated (`X-Request-Id`); I would add OpenTelemetry tracing and metrics on booking outcomes.
 - **Secrets and TLS** are expected to be handled by the platform (reverse proxy / load balancer), which is why the app does not upgrade insecure requests itself.
 - **Data-subject deletion requests.** The retention sweep handles routine anonymisation on a schedule; an explicit "delete my data now" request (as opposed to "wait for the retention window") would need its own admin action, distinct from the scheduled purge.
+- **No automated database backups.** A lost Render disk means lost bookings; a real deployment would schedule regular snapshots of the SQLite file (or move to a managed Postgres instance with point-in-time recovery).

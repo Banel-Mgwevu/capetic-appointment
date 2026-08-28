@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "hash-password": "tsx scripts/hash-password.ts"
+    "hash-password": "tsx scripts/hash-password.ts",
+    "create-staff-user": "tsx scripts/create-staff-user.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

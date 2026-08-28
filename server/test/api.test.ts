@@ -15,8 +15,8 @@ import {
 } from './helpers.js';
 
 let ctx: TestContext;
-beforeEach(() => {
-  ctx = createTestContext();
+beforeEach(async () => {
+  ctx = await createTestContext();
 });
 
 const book = (overrides: Record<string, unknown> = {}) =>

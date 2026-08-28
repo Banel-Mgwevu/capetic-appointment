@@ -3,6 +3,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppointmentRepository } from '../src/repositories/appointmentRepository.js';
 import { BranchRepository } from '../src/repositories/branchRepository.js';
+import { JobLockRepository } from '../src/repositories/jobLockRepository.js';
 import { NotificationRepository } from '../src/repositories/notificationRepository.js';
 import { ServiceRepository } from '../src/repositories/serviceRepository.js';
 import { ReminderService } from '../src/services/reminderService.js';
@@ -18,8 +19,8 @@ const book = (startsAt: string) =>
     .post('/api/appointments')
     .send({ branchId: ROSEBANK, serviceId: OPEN_ACCOUNT, startsAt, customer, consent: true });
 
-beforeEach(() => {
-  ctx = createTestContext();
+beforeEach(async () => {
+  ctx = await createTestContext();
   const branches = new BranchRepository(ctx.db);
   const services = new ServiceRepository(ctx.db);
   const appointments = new AppointmentRepository(ctx.db);
@@ -29,6 +30,7 @@ beforeEach(() => {
     appointments,
     branches,
     services,
+    locks: new JobLockRepository(ctx.db),
     notifier: new SimulatedNotifier(notifications, logger, () => ctx.now),
     logger,
     clock: () => ctx.now,

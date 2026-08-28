@@ -19,6 +19,9 @@ export function StaffNav() {
         <NavLink to="/admin/lookup" className={({ isActive }) => (isActive ? 'active' : '')}>
           Look up a booking
         </NavLink>
+        <NavLink to="/admin/manage" className={({ isActive }) => (isActive ? 'active' : '')}>
+          Manage
+        </NavLink>
         <NavLink to="/admin/audit-log" className={({ isActive }) => (isActive ? 'active' : '')}>
           Audit log
         </NavLink>

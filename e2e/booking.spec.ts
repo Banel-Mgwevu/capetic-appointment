@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { bookAppointment } from './helpers';
+import { bookAppointment, nextOpenWeekdayIso } from './helpers';
 
 test.describe('booking flow', () => {
   test('books an appointment end to end and shows a confirmation slip', async ({ page }) => {
@@ -16,9 +16,7 @@ test.describe('booking flow', () => {
     await page.getByText('Open a new account', { exact: false }).first().click();
     await page.getByText('Sandton City', { exact: false }).first().click();
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    await page.locator('input[type="date"]').fill(tomorrow.toISOString().slice(0, 10));
+    await page.locator('input[type="date"]').fill(nextOpenWeekdayIso(1));
     await page.locator('.slot:not(:disabled)').first().click();
     await page.getByRole('button', { name: 'Continue' }).click();
 

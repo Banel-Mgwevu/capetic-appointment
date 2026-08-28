@@ -158,6 +158,7 @@ textarea {
   gap: 12px;
   text-decoration: none;
   color: var(--ink);
+  flex-shrink: 0;
 }
 
 .masthead__logo {
@@ -190,6 +191,17 @@ textarea {
 .masthead__nav {
   display: flex;
   gap: 4px;
+  /* On a narrow phone, 4 nav items don't fit at comfortable tap-target size.
+     Scrolling horizontally (a common, well-understood mobile pattern) beats
+     wrapping onto a ragged second line, which read as visually broken. */
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  min-width: 0; /* lets this flex item actually shrink/scroll instead of forcing the row to wrap */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.masthead__nav::-webkit-scrollbar {
+  display: none;
 }
 .masthead__nav a {
   color: var(--ink-2);
@@ -198,6 +210,8 @@ textarea {
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: 0.92rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .masthead__nav a:hover {
   background: rgba(13, 34, 51, 0.06);
@@ -206,6 +220,22 @@ textarea {
   color: var(--ink);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line);
+}
+
+@media (max-width: 480px) {
+  .masthead {
+    padding: 12px 16px;
+  }
+  .masthead__wordmark span {
+    display: none; /* drop the "Branch appointments" subtitle to give the nav more room */
+  }
+  .masthead__nav {
+    gap: 2px;
+  }
+  .masthead__nav a {
+    padding: 7px 9px;
+    font-size: 0.85rem;
+  }
 }
 
 main {
@@ -1397,4 +1427,115 @@ button.stepper__button:hover {
 }
 .my-appointments-list__item--confirmed .my-appointments-list__status {
   color: #146c43;
+}
+
+/* ------------------------------------------------------------------
+   Error boundary fallback
+   ------------------------------------------------------------------ */
+.error-boundary h1 {
+  margin-bottom: 8px;
+}
+.error-boundary p {
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------------------------------
+   Admin: manage branches/services
+   ------------------------------------------------------------------ */
+.manage-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.manage-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.manage-card__summary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.manage-card__title {
+  font-weight: 600;
+}
+.manage-card__meta {
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-left: 6px;
+}
+.manage-card__detail {
+  font-size: 0.88rem;
+  color: var(--ink-2);
+}
+
+.manage-form h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.manage-form__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 16px;
+  margin-bottom: 8px;
+}
+.manage-form__span2 {
+  grid-column: 1 / -1;
+}
+@media (max-width: 560px) {
+  .manage-form__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hours-editor {
+  border: 0;
+  padding: 0;
+  margin: 8px 0 20px;
+}
+.hours-editor legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+.hours-editor__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+  flex-wrap: wrap;
+}
+.hours-editor__row:last-child {
+  border-bottom: 0;
+}
+.hours-editor__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 120px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.hours-editor__toggle input {
+  accent-color: var(--brand-navy);
+}
+.hours-editor__times {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.input--time {
+  width: 110px;
+}
+.hours-editor__closed {
+  color: var(--ink-3);
+  font-style: italic;
+  font-size: 0.9rem;
 }

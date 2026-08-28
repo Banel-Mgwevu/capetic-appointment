@@ -84,10 +84,67 @@ export const adminLoginBody = z.object({
   password: z.string().min(1),
 });
 
+export const staffUserBody = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(3, 'Username must be at least 3 characters')
+    .max(64)
+    .regex(/^[a-zA-Z0-9._-]+$/, 'Username can only contain letters, numbers, dots, dashes and underscores'),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(200),
+});
+
 export const analyticsQuery = z.object({
   rangeDays: z.coerce.number().int().min(1).max(365).default(30),
 });
 
 export const auditLogQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+const openingWindow = z.object({
+  open: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm, e.g. 08:30'),
+  close: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm, e.g. 16:30'),
+});
+
+/** Keyed by weekday ("0" = Sunday ... "6" = Saturday); a missing key means closed that day. */
+const openingHours = z
+  .object({
+    '0': openingWindow.optional(),
+    '1': openingWindow.optional(),
+    '2': openingWindow.optional(),
+    '3': openingWindow.optional(),
+    '4': openingWindow.optional(),
+    '5': openingWindow.optional(),
+    '6': openingWindow.optional(),
+  })
+  .strict()
+  .refine((hours) => Object.values(hours).some((w) => w !== undefined), {
+    message: 'Open at least one day of the week',
+  })
+  .refine((hours) => Object.values(hours).every((w) => !w || w.open < w.close), {
+    message: 'Opening time must be before closing time',
+  });
+
+export const branchCreateBody = z.object({
+  name: z.string().trim().min(2, 'Enter a branch name').max(100),
+  city: z.string().trim().min(2, 'Enter a city').max(100),
+  address: z.string().trim().min(5, 'Enter a street address').max(200),
+  slotMinutes: z.coerce.number().int().min(5).max(240).default(30),
+  capacity: z.coerce.number().int().min(1, 'Capacity must be at least 1').max(50),
+  openingHours,
+});
+
+export const branchUpdateBody = branchCreateBody.partial();
+
+export const serviceCreateBody = z.object({
+  name: z.string().trim().min(2, 'Enter a service name').max(100),
+  description: z.string().trim().min(5, 'Enter a short description').max(300),
+  durationMinutes: z.coerce.number().int().min(5, 'Must be at least 5 minutes').max(240),
+});
+
+export const serviceUpdateBody = serviceCreateBody.partial();
+
+export const idParams = z.object({
+  id: z.coerce.number().int().positive(),
 });

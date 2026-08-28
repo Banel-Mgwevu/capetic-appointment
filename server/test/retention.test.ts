@@ -1,16 +1,19 @@
 import pino from 'pino';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppointmentRepository } from '../src/repositories/appointmentRepository.js';
+import { JobLockRepository } from '../src/repositories/jobLockRepository.js';
 import { RetentionService } from '../src/services/retentionService.js';
 import { createTestContext, customer, OPEN_ACCOUNT, ROSEBANK, TOMORROW, type TestContext } from './helpers.js';
 import request from 'supertest';
 
 let ctx: TestContext;
 let appointments: AppointmentRepository;
+let locks: JobLockRepository;
 
-beforeEach(() => {
-  ctx = createTestContext();
+beforeEach(async () => {
+  ctx = await createTestContext();
   appointments = new AppointmentRepository(ctx.db);
+  locks = new JobLockRepository(ctx.db);
 });
 
 const book = () =>
@@ -22,7 +25,7 @@ describe('RetentionService', () => {
   it('leaves recent bookings untouched', async () => {
     const { reference } = (await book()).body.appointment;
     const logger = pino({ level: 'silent' });
-    const retention = new RetentionService({ appointments, retentionDays: 90, logger, clock: () => ctx.now });
+    const retention = new RetentionService({ appointments, locks, retentionDays: 90, logger, clock: () => ctx.now });
 
     const count = retention.sweep();
     expect(count).toBe(0);
@@ -37,7 +40,7 @@ describe('RetentionService', () => {
     const logger = pino({ level: 'silent' });
     // Retention window of 0 days means "today and anything before it" is due.
     const farFuture = new Date('2026-12-31T00:00:00Z');
-    const retention = new RetentionService({ appointments, retentionDays: 1, logger, clock: () => farFuture });
+    const retention = new RetentionService({ appointments, locks, retentionDays: 1, logger, clock: () => farFuture });
 
     const count = retention.sweep();
     expect(count).toBe(1);
@@ -56,7 +59,7 @@ describe('RetentionService', () => {
     await book();
     const logger = pino({ level: 'silent' });
     const farFuture = new Date('2026-12-31T00:00:00Z');
-    const retention = new RetentionService({ appointments, retentionDays: 1, logger, clock: () => farFuture });
+    const retention = new RetentionService({ appointments, locks, retentionDays: 1, logger, clock: () => farFuture });
 
     expect(retention.sweep()).toBe(1);
     expect(retention.sweep()).toBe(0);

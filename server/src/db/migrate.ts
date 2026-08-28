@@ -114,6 +114,39 @@ const migrations: Migration[] = [
       CREATE INDEX idx_audit_log_created ON audit_log (created_at);
     `,
   },
+  {
+    id: '0003_staff_users',
+    sql: `
+      -- Per-staff login, replacing the single shared admin account. Failed
+      -- attempts and a lockout window are tracked per account so the audit
+      -- trail attributes actions to a real person, and brute-forcing one
+      -- account's password is throttled beyond what the request-rate
+      -- limiter alone provides.
+      CREATE TABLE staff_users (
+        id              INTEGER PRIMARY KEY,
+        username        TEXT    NOT NULL UNIQUE,
+        password_hash   TEXT    NOT NULL,
+        failed_attempts INTEGER NOT NULL DEFAULT 0,
+        locked_until    TEXT,
+        created_at      TEXT    NOT NULL,
+        last_login_at   TEXT
+      );
+    `,
+  },
+  {
+    id: '0004_job_locks',
+    sql: `
+      -- Advisory lock for background jobs (retention/reminder sweeps), so a
+      -- manual "run now" trigger can't race the scheduled sweep, and so the
+      -- same pattern works unchanged if this ever moves off one SQLite file
+      -- per instance onto a real shared database (e.g. Postgres) with
+      -- multiple app instances pointed at it.
+      CREATE TABLE job_locks (
+        job_name     TEXT PRIMARY KEY,
+        locked_until TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export function migrate(db: Db): string[] {

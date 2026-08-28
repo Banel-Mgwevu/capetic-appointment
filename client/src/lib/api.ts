@@ -5,10 +5,14 @@ import type {
   AppointmentResponse,
   AppointmentSummary,
   AuditEntry,
-  BookingInput,
   Branch,
+  BranchInput,
+  BranchUpdateInput,
+  BookingInput,
   DayAvailability,
   Service,
+  ServiceInput,
+  ServiceUpdateInput,
 } from './types';
 
 export interface FieldIssue {
@@ -141,4 +145,13 @@ export const api = {
   auditLog: (limit = 50) => request<{ entries: AuditEntry[] }>(`/admin/audit-log?limit=${limit}`, { token: getAdminToken() }).then((r) => r.entries),
   triggerPrivacyPurge: () =>
     request<{ redactedCount: number }>('/admin/privacy/purge', { method: 'POST', token: getAdminToken() }),
+
+  createBranch: (input: BranchInput) =>
+    request<Branch>('/admin/branches', { method: 'POST', body: JSON.stringify(input), token: getAdminToken() }),
+  updateBranch: (id: number, input: BranchUpdateInput) =>
+    request<Branch>(`/admin/branches/${id}`, { method: 'PATCH', body: JSON.stringify(input), token: getAdminToken() }),
+  createService: (input: ServiceInput) =>
+    request<Service>('/admin/services', { method: 'POST', body: JSON.stringify(input), token: getAdminToken() }),
+  updateService: (id: number, input: ServiceUpdateInput) =>
+    request<Service>(`/admin/services/${id}`, { method: 'PATCH', body: JSON.stringify(input), token: getAdminToken() }),
 };
