@@ -1,0 +1,120 @@
+# Pull-request hygiene and the branch promotion policy.
+#
+#   feature/* ──► dev ──► staging ──► main (production)
+#
+# "Promotion guard" fails any PR that skips a stage (e.g. dev → main). Marked as
+# a required check on staging and main, it makes that merge impossible.
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  promotion-guard:
+    name: Promotion guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce dev → staging → main
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD: ${{ github.event.pull_request.head.ref }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          echo "PR: $HEAD → $BASE"
+          case "$BASE" in
+            main)    allowed="staging" ;;
+            staging) allowed="dev" ;;
+            *)       echo "✅ No promotion rule for '$BASE'."; exit 0 ;;
+          esac
+          if [ "$HEAD" != "$allowed" ] || [ "$SAME_REPO" != "true" ]; then
+            {
+              echo "### 🚫 Promotion blocked"
+              echo "\`$HEAD\` → \`$BASE\` is not allowed. Changes must flow **dev → staging → main**."
+              echo ""
+              echo "Only \`$allowed\` may be merged into \`$BASE\`. Retarget this PR, or merge it into \`dev\` first."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Promotion blocked::Only '$allowed' can be merged into '$BASE' (got '$HEAD'). Flow is dev → staging → main."
+            exit 1
+          fi
+          echo "### ✅ Valid promotion: \`$HEAD\` → \`$BASE\`" >> "$GITHUB_STEP_SUMMARY"
+
+  pr-title:
+    name: Conventional PR title
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      # Titles like "feat(booking): allow same-day slots" drive release notes and labels.
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            test
+            docs
+            ci
+            build
+            chore
+            revert
+            release
+          requireScope: false
+
+  labels:
+    name: Auto-label
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          sync-labels: true
+      - name: Size label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo, pull_number: pr.number, per_page: 100,
+            });
+            const changed = files
+              .filter((f) => !f.filename.endsWith('package-lock.json'))
+              .reduce((n, f) => n + f.additions + f.deletions, 0);
+            const sizes = [['size/XS', 10], ['size/S', 50], ['size/M', 250], ['size/L', 1000], ['size/XL', Infinity]];
+            const [label] = sizes.find(([, max]) => changed <= max);
+            const colors = { 'size/XS': '3cbf00', 'size/S': '5d9801', 'size/M': 'f7b500', 'size/L': 'ff7a00', 'size/XL': 'e11d21' };
+            for (const [name] of sizes) {
+              const has = pr.labels.some((l) => l.name === name);
+              if (name !== label && has) {
+                await github.rest.issues.removeLabel({ ...context.repo, issue_number: pr.number, name });
+              }
+            }
+            try {
+              await github.rest.issues.createLabel({ ...context.repo, name: label, color: colors[label] });
+            } catch {}
+            await github.rest.issues.addLabels({ ...context.repo, issue_number: pr.number, labels: [label] });
+            core.summary.addRaw(`**${label}**: ${changed} lines changed (excluding lockfile)`).write();
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+      # Blocks PRs that add dependencies with known high/critical vulnerabilities.
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

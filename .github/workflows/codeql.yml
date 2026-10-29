@@ -1,0 +1,32 @@
+# Static security analysis (SAST). Free for public repositories; findings appear
+# under the Security tab and as annotations on pull requests.
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [dev, staging, main]
+  schedule:
+    - cron: '27 3 * * 1' # Mondays 05:27 SAST, catches newly published queries
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript

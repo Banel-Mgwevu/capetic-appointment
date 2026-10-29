@@ -1,0 +1,19 @@
+# Groups auto-generated GitHub Release notes by PR label.
+changelog:
+  exclude:
+    labels: [skip-changelog]
+  categories:
+    - title: 🚢 Promotions
+      labels: [promotion]
+    - title: 🔒 Security
+      labels: [security]
+    - title: 🖥️ Server
+      labels: [server]
+    - title: 🎨 Client
+      labels: [client]
+    - title: 📦 Dependencies
+      labels: [dependencies]
+    - title: 🛠️ CI / Infrastructure
+      labels: [ci, docker]
+    - title: Other changes
+      labels: ['*']

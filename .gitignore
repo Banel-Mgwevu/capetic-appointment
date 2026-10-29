@@ -13,3 +13,6 @@ npm-debug.log*
 /test-results/
 /playwright-report/
 /e2e/.tmp/
+
+# Test reports (CI)
+reports/

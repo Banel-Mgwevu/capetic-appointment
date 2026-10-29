@@ -1,0 +1,28 @@
+# Labels applied automatically to PRs by the "PR Checks" workflow.
+server:
+  - changed-files:
+      - any-glob-to-any-file: server/**
+client:
+  - changed-files:
+      - any-glob-to-any-file: client/**
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.test.ts', '**/*.test.tsx', 'e2e/**']
+database:
+  - changed-files:
+      - any-glob-to-any-file: ['server/src/db/**', 'server/src/repositories/**']
+security:
+  - changed-files:
+      - any-glob-to-any-file: ['server/src/services/authService.ts', 'server/src/domain/token.ts', 'server/src/http/middleware/**']
+ci:
+  - changed-files:
+      - any-glob-to-any-file: .github/**
+docker:
+  - changed-files:
+      - any-glob-to-any-file: ['Dockerfile', 'docker-compose.yml', 'docker-entrypoint.sh', '.dockerignore']
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.md']
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file: ['package-lock.json', '**/package.json']

@@ -1,0 +1,285 @@
+# Delivery pipeline. Every push to an environment branch runs:
+#
+#   CI ─► Build & publish image (GHCR, SBOM + provenance) ─► Deploy ─► Verify live ─► Promote / Release
+#
+#   branch    environment   after a successful deploy
+#   dev       development   opens/updates PR  dev → staging
+#   staging   staging       opens/updates PR  staging → main
+#   main      production    tags a GitHub Release (production needs a manual approval first)
+#
+# Per-environment config (Settings → Environments → <name>):
+#   secret  RENDER_DEPLOY_HOOK_URL  Render "Deploy Hook" for that environment's service
+#   var     APP_URL                 e.g. https://capitec-appointment-staging.onrender.com
+# Missing config doesn't fail the pipeline; the deploy is reported as skipped.
+#
+# Optional repo secret PROMOTION_TOKEN (fine-grained PAT): lets the auto-opened
+# promotion PRs trigger CI themselves (PRs opened with GITHUB_TOKEN don't).
+name: Deploy
+
+on:
+  push:
+    branches: [dev, staging, main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+      security-events: write
+
+  meta:
+    name: Resolve environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      next_branch: ${{ steps.env.outputs.next_branch }}
+      short_sha: ${{ steps.env.outputs.short_sha }}
+    steps:
+      - id: env
+        run: |
+          case "${{ github.ref_name }}" in
+            dev)     echo "environment=development" >> "$GITHUB_OUTPUT"; echo "next_branch=staging" >> "$GITHUB_OUTPUT" ;;
+            staging) echo "environment=staging"     >> "$GITHUB_OUTPUT"; echo "next_branch=main"    >> "$GITHUB_OUTPUT" ;;
+            main)    echo "environment=production"  >> "$GITHUB_OUTPUT"; echo "next_branch="        >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Deploys run only from dev, staging or main."; exit 1 ;;
+          esac
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  image:
+    name: Build & publish image
+    runs-on: ubuntu-latest
+    needs: [ci, meta]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: tags
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=raw,value=${{ needs.meta.outputs.environment }}
+            type=sha,format=short,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.tags.outputs.labels }}
+          build-args: GIT_COMMIT=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+          provenance: mode=max
+      # Signed, verifiable build provenance: `gh attestation verify oci://<image> -R <repo>`
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.name.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  deploy:
+    name: Deploy to ${{ needs.meta.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [meta, image]
+    timeout-minutes: 30
+    environment:
+      name: ${{ needs.meta.outputs.environment }}
+      url: ${{ vars.APP_URL }}
+    outputs:
+      deployed: ${{ steps.trigger.outputs.deployed }}
+    steps:
+      - name: Trigger Render deploy
+        id: trigger
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL is not set for '${{ needs.meta.outputs.environment }}'; skipping deploy."
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "deployed=true" >> "$GITHUB_OUTPUT"
+          echo "Deploy triggered for ${{ github.sha }}"
+
+      - name: Wait until the new commit is live
+        if: steps.trigger.outputs.deployed == 'true' && vars.APP_URL != ''
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          # Free Render instances build and cold-start slowly; allow up to 20 minutes.
+          deadline=$(( $(date +%s) + 1200 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            body=$(curl -fsS --max-time 30 "$APP_URL/api/health" || true)
+            live=$(echo "$body" | jq -r '.commit // empty' 2>/dev/null || true)
+            echo "$(date -u +%T) live commit: ${live:-<unreachable>}"
+            if [ "$live" = "$GITHUB_SHA" ]; then
+              echo "✅ $GITHUB_SHA is live"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::Timed out waiting for $GITHUB_SHA to go live at $APP_URL"
+          exit 1
+
+      - name: Smoke test
+        if: steps.trigger.outputs.deployed == 'true' && vars.APP_URL != ''
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          check() {
+            code=$(curl -s -o /tmp/body -w '%{http_code} %{time_total}' "$APP_URL$1")
+            echo "| \`$1\` | ${code% *} | ${code#* }s |" >> /tmp/smoke.md
+            [ "${code% *}" = "200" ] || { echo "::error::$1 returned ${code% *}"; return 1; }
+          }
+          echo "| Endpoint | Status | Time |" > /tmp/smoke.md
+          echo "|---|---|---|" >> /tmp/smoke.md
+          check /api/health
+          check /api/branches
+          check /api/services
+          check /
+          grep -qi "<html" /tmp/body
+          { echo "### 🔥 Smoke test"; cat /tmp/smoke.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          {
+            echo "## 🚀 ${{ needs.meta.outputs.environment }}"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Branch | \`${{ github.ref_name }}\` |"
+            echo "| Commit | [\`${{ needs.meta.outputs.short_sha }}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |"
+            echo "| Image | \`${{ needs.image.outputs.image }}:sha-${{ needs.meta.outputs.short_sha }}\` |"
+            echo "| Digest | \`${{ needs.image.outputs.digest }}\` |"
+            echo "| URL | ${{ vars.APP_URL || '_not configured_' }} |"
+            echo "| Deployed | ${{ steps.trigger.outputs.deployed == 'true' && '✅ yes' || '⏭️ skipped (no deploy hook)' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    name: Open promotion PR → ${{ needs.meta.outputs.next_branch }}
+    runs-on: ubuntu-latest
+    needs: [meta, deploy]
+    if: needs.meta.outputs.next_branch != ''
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Create or update promotion PR
+        env:
+          GH_TOKEN: ${{ secrets.PROMOTION_TOKEN || github.token }}
+          FROM: ${{ github.ref_name }}
+          TO: ${{ needs.meta.outputs.next_branch }}
+          ENV_NAME: ${{ needs.meta.outputs.environment }}
+          USING_PAT: ${{ secrets.PROMOTION_TOKEN != '' }}
+        run: |
+          if ! git ls-remote --exit-code --heads origin "$TO" > /dev/null; then
+            echo "::warning::Branch '$TO' doesn't exist yet; nothing to promote into."
+            exit 0
+          fi
+          commits=$(git log --no-merges --pretty='- %s (%h)' "origin/$TO..origin/$FROM")
+          if [ -z "$commits" ]; then
+            echo "✅ '$TO' is already up to date with '$FROM'."
+            exit 0
+          fi
+          count=$(echo "$commits" | wc -l)
+          note=""
+          if [ "$USING_PAT" != "true" ]; then
+            note="> **Note:** opened with the default Actions token, so checks do not start on their own. Close and reopen this PR to run them (or add a PROMOTION_TOKEN secret)."
+          fi
+          body=$(cat <<EOF
+          ## 🚢 Promote \`$FROM\` → \`$TO\`
+
+          ✅ These changes passed CI and were deployed and smoke-tested on **$ENV_NAME** ([run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})).
+
+          ### $count change(s)
+          $commits
+          $note
+          > Merge with **Create a merge commit** (not squash) so branches stay in sync.
+          EOF
+          )
+          existing=$(gh pr list --base "$TO" --head "$FROM" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --body "$body"
+            echo "Updated PR #$existing"
+          else
+            gh label create promotion --color 6f42c1 --description "Environment promotion" 2>/dev/null || true
+            gh pr create --base "$TO" --head "$FROM" --label promotion \
+              --title "release: promote $FROM → $TO" --body "$body"
+          fi
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [meta, image, deploy]
+    if: github.ref_name == 'main'
+    permissions:
+      contents: write
+    steps:
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="v$(date -u +%Y.%-m.%-d)-${{ github.run_number }}"
+          # Notes are generated from PRs merged since the previous release, grouped per .github/release.yml.
+          gh release create "$tag" --target "$GITHUB_SHA" --generate-notes --title "Production $tag"
+          {
+            echo "### 🏷️ Released [$tag](${{ github.server_url }}/${{ github.repository }}/releases/tag/$tag)"
+            echo "Image: \`${{ needs.image.outputs.image }}@${{ needs.image.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  alert:
+    name: Alert on production failure
+    runs-on: ubuntu-latest
+    needs: [ci, image, deploy]
+    if: failure() && github.ref_name == 'main'
+    permissions:
+      issues: write
+    steps:
+      - name: Open an incident issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create incident --color b60205 --description "Production pipeline failure" 2>/dev/null || true
+          gh issue create --label incident \
+            --title "🚨 Production pipeline failed at ${GITHUB_SHA::7}" \
+            --body "The production pipeline failed for ${{ github.sha }}.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Production is still serving the previous release. Fix forward through dev → staging → main, or revert."

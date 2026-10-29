@@ -20,7 +20,10 @@ RUN npm run build \
 # Stage 2: minimal runtime image
 # ---------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS runtime
+# Commit SHA reported by /api/health so deploys can verify what is live (set by CI).
+ARG GIT_COMMIT=""
 ENV NODE_ENV=production \
+    GIT_COMMIT=$GIT_COMMIT \
     PORT=3000 \
     DATABASE_PATH=/app/data/appointments.db \
     STATIC_DIR=/app/client/dist \

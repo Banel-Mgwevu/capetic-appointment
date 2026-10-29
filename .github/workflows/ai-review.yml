@@ -1,0 +1,63 @@
+# AI code review on every pull request, using GitHub Models (free, no API key:
+# authenticates with GITHUB_TOKEN via the `models: read` permission).
+# Re-run on demand by commenting `/ai-review` on the PR.
+#
+# Optional repository variables (Settings → Secrets and variables → Actions → Variables):
+#   AI_REVIEW_MODEL     e.g. openai/gpt-4.1 (default), openai/gpt-4.1-mini, openai/gpt-4o
+#   AI_REVIEW_BLOCKING  "true" to fail this check when the review finds a critical issue
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  models: read
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: AI review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # PRs: skip drafts and Dependabot (its token can't call Models).
+    # Comments: only `/ai-review` on a PR, from the repo owner or a collaborator.
+    if: >-
+      (github.event_name == 'pull_request'
+        && !github.event.pull_request.draft
+        && github.actor != 'dependabot[bot]')
+      || (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && startsWith(github.event.comment.body, '/ai-review')
+        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    steps:
+      # Only the review script is checked out (from the trusted base branch); PR code is
+      # read through the API as text and never executed.
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: React to the command
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api -X POST repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions
+          -f content=rocket
+      - name: Review pull request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL }}
+          AI_REVIEW_BLOCKING: ${{ vars.AI_REVIEW_BLOCKING }}
+        run: node .github/scripts/ai-review.mjs

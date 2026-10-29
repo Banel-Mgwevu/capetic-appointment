@@ -1,5 +1,10 @@
 # Branch Appointment Booking
 
+[![Deploy](https://github.com/Banel-Mgwevu/capetic-appointment/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/Banel-Mgwevu/capetic-appointment/actions/workflows/deploy.yml)
+[![CI](https://github.com/Banel-Mgwevu/capetic-appointment/actions/workflows/ci.yml/badge.svg)](https://github.com/Banel-Mgwevu/capetic-appointment/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Banel-Mgwevu/capetic-appointment/actions/workflows/codeql.yml/badge.svg)](https://github.com/Banel-Mgwevu/capetic-appointment/actions/workflows/codeql.yml)
+[![AI Code Review](https://github.com/Banel-Mgwevu/capetic-appointment/actions/workflows/ai-review.yml/badge.svg)](https://github.com/Banel-Mgwevu/capetic-appointment/actions/workflows/ai-review.yml)
+
 A full-stack system for customers to book an appointment at a bank branch and receive a (simulated) confirmation by email and SMS.
 
 - **Backend:** Node.js 22, TypeScript, Express, SQLite (better-sqlite3), Zod, Pino
@@ -41,6 +46,32 @@ To run the production build locally without Docker:
 npm run build
 STATIC_DIR=client/dist npm start   # http://localhost:3000
 ```
+
+## CI/CD pipeline
+
+Three long-lived branches, one per environment. Changes only move forward one stage at a time:
+
+```mermaid
+flowchart LR
+  F[feature/*] -->|PR| D[dev]
+  D -->|PR, auto-opened| S[staging]
+  S -->|PR, auto-opened| M[main]
+  D -. deploy .-> DE((development))
+  S -. deploy .-> SE((staging))
+  M -. "deploy (manual approval)" .-> PE((production))
+  D x--x|blocked| M
+```
+
+| Stage | Workflow | What it does |
+|---|---|---|
+| Every PR | `CI` | Lint, typecheck, unit tests with coverage (server gate: 85% lines), build, Playwright E2E, Docker smoke test, Grype image scan |
+| Every PR | `AI Code Review` | Reviews the diff with GitHub Models and posts inline comments with suggested fixes. Comment `/ai-review` to re-run |
+| Every PR | `PR Checks` | **Promotion guard** (only `dev → staging` and `staging → main`), conventional title, auto-labels, size label, dependency vulnerability review |
+| PR + weekly | `CodeQL` | Static security analysis, results in the Security tab |
+| Push to `dev`/`staging`/`main` | `Deploy` | CI, then publish the image to GHCR (SBOM and signed provenance), deploy, wait until `/api/health` reports the new commit, smoke test, then open the next promotion PR. Production deploys need approval and end in a GitHub Release |
+| Weekly | Dependabot | Grouped npm, Actions and Docker updates, opened against `dev` |
+
+Merge promotion PRs with **Create a merge commit** (not squash) so the branches stay in sync.
 
 ## Testing and quality checks
 
