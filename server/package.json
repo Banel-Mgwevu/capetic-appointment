@@ -32,7 +32,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.15.0",
     "@types/supertest": "^6.0.2",
-    "@vitest/coverage-v8": "^3.2.7",
+    "@vitest/coverage-v8": "^5.0.5",
     "eslint": "^10.9.1",
     "pino-pretty": "^13.0.0",
     "supertest": "^7.0.0",
