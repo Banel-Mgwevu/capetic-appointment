@@ -25,7 +25,7 @@ concurrency:
 jobs:
   review:
     name: AI review
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     # PRs: skip drafts and Dependabot (its token can't call Models).
     # Comments: only `/ai-review` on a PR, from the repo owner or a collaborator.

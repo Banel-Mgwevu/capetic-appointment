@@ -20,7 +20,7 @@ concurrency:
 jobs:
   lint:
     name: Lint & typecheck
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -34,7 +34,7 @@ jobs:
 
   unit-tests:
     name: Unit tests (${{ matrix.workspace }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -81,7 +81,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -103,7 +103,7 @@ jobs:
 
   e2e:
     name: E2E (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [lint, unit-tests]
     steps:
@@ -129,7 +129,7 @@ jobs:
 
   docker:
     name: Docker smoke test & scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [lint]
     permissions:
@@ -177,7 +177,7 @@ jobs:
   # Single check to mark as "required" in branch rules, instead of one per job.
   ci-passed:
     name: CI passed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ always() }}
     needs: [lint, unit-tests, build, e2e, docker]
     steps:

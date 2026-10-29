@@ -40,7 +40,7 @@ jobs:
 
   meta:
     name: Resolve environment
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       environment: ${{ steps.env.outputs.environment }}
       next_branch: ${{ steps.env.outputs.next_branch }}
@@ -58,7 +58,7 @@ jobs:
 
   image:
     name: Build & publish image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [ci, meta]
     timeout-minutes: 20
     permissions:
@@ -107,8 +107,8 @@ jobs:
           push-to-registry: true
 
   deploy:
-    name: Deploy to ${{ needs.meta.outputs.environment }}
-    runs-on: ubuntu-latest
+    name: Deploy
+    runs-on: ubuntu-24.04
     needs: [meta, image]
     timeout-minutes: 30
     environment:
@@ -186,8 +186,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   promote:
-    name: Open promotion PR → ${{ needs.meta.outputs.next_branch }}
-    runs-on: ubuntu-latest
+    name: Open promotion PR
+    runs-on: ubuntu-24.04
     needs: [meta, deploy]
     if: needs.meta.outputs.next_branch != ''
     permissions:
@@ -243,7 +243,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [meta, image, deploy]
     if: github.ref_name == 'main'
     permissions:
@@ -264,7 +264,7 @@ jobs:
 
   alert:
     name: Alert on production failure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [ci, image, deploy]
     if: failure() && github.ref_name == 'main'
     permissions:

@@ -16,7 +16,7 @@ permissions:
 jobs:
   promotion-guard:
     name: Promotion guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Enforce dev → staging → main
         env:
@@ -44,7 +44,7 @@ jobs:
 
   pr-title:
     name: Conventional PR title
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       pull-requests: read
     steps:
@@ -69,7 +69,7 @@ jobs:
 
   labels:
     name: Auto-label
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: write
@@ -107,7 +107,7 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: write
