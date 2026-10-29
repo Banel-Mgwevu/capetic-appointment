@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: install dependencies and build both workspaces
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS build
+FROM node:25-bookworm-slim AS build
 WORKDIR /app
 
 # Copy manifests first so dependency installation is cached across code changes.
@@ -19,7 +19,7 @@ RUN npm run build \
 # ---------------------------------------------------------------------------
 # Stage 2: minimal runtime image
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS runtime
+FROM node:25-bookworm-slim AS runtime
 # Commit SHA reported by /api/health so deploys can verify what is live (set by CI).
 ARG GIT_COMMIT=""
 ENV NODE_ENV=production \
