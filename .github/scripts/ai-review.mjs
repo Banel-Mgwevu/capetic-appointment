@@ -158,9 +158,31 @@ async function callModel(model, userPrompt) {
       ],
     }),
   });
-  if (!res.ok) throw new Error(`${model}: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return JSON.parse(data.choices[0].message.content);
+  const raw = await res.text();
+  if (!res.ok) throw new Error(`${model}: HTTP ${res.status} ${raw.slice(0, 300)}`);
+  let content;
+  try {
+    content = JSON.parse(raw).choices[0].message.content;
+  } catch {
+    throw new Error(`${model}: unexpected API response: ${raw.slice(0, 300)}`);
+  }
+  try {
+    return parseReview(content);
+  } catch {
+    throw new Error(`${model}: reply was not valid JSON: ${content.slice(0, 300)}`);
+  }
+}
+
+/** Models sometimes wrap the JSON in prose or a code fence; take the outermost {...}. */
+function parseReview(content) {
+  try {
+    return JSON.parse(content);
+  } catch {
+    const start = content.indexOf('{');
+    const end = content.lastIndexOf('}');
+    if (start === -1 || end <= start) throw new Error('no JSON object in reply');
+    return JSON.parse(content.slice(start, end + 1));
+  }
 }
 
 const SEVERITY_ICON = { critical: '🛑', major: '🔶', minor: '🔹', nit: '💭' };
@@ -203,12 +225,13 @@ async function main() {
       break;
     } catch (err) {
       errors.push(err.message);
-      console.warn(`Model attempt failed: ${err.message}`);
+      console.warn(`Model attempt failed: ${JSON.stringify(err.message)}`);
     }
   }
   if (!review) {
     // Rate limits on the free tier shouldn't block a merge; report and move on.
-    console.log(`::warning::AI review unavailable: ${errors.join(' | ')}`);
+    // JSON.stringify keeps each error on one line so the annotation isn't cut at a newline.
+    console.log(`::warning::AI review unavailable: ${errors.map((e) => JSON.stringify(e)).join(' | ')}`);
     summary('### 🤖 AI review', 'Skipped: GitHub Models was unavailable or rate-limited. Re-run later or comment `/ai-review`.');
     return;
   }

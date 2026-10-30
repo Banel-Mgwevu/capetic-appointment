@@ -167,9 +167,18 @@ textarea {
   display: block;
 }
 
+/* Logo lockup: mark | divider | "Capitec" over the app name. Mirrored by the splash in index.html. */
+.masthead__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 2px;
+  background: var(--line-strong);
+}
+
 .masthead__wordmark {
   display: flex;
   flex-direction: column;
+  gap: 3px;
   line-height: 1.1;
 }
 
@@ -182,10 +191,12 @@ textarea {
 }
 
 .masthead__wordmark span {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--ink-3);
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--brand-navy);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .masthead__nav {
@@ -226,8 +237,9 @@ textarea {
   .masthead {
     padding: 12px 16px;
   }
-  .masthead__wordmark span {
-    display: none; /* drop the "Branch appointments" subtitle to give the nav more room */
+  .masthead__wordmark span,
+  .masthead__divider {
+    display: none; /* drop the "Branch Appointments" subtitle to give the nav more room */
   }
   .masthead__nav {
     gap: 2px;
