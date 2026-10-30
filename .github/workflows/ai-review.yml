@@ -38,11 +38,12 @@ jobs:
         && startsWith(github.event.comment.body, '/ai-review')
         && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     steps:
-      # Only the review script is checked out (from the trusted base branch); PR code is
-      # read through the API as text and never executed.
+      # Only the review script is checked out (from the trusted, protected base branch);
+      # PR code is read through the API as text and never executed. Using the branch name
+      # rather than the event's SHA means re-runs pick up fixes merged into the base since.
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || '' }}
           sparse-checkout: .github/scripts
       - uses: actions/setup-node@v5
         with:
