@@ -47,11 +47,12 @@ export default function App() {
       </a>
       <header className="masthead">
         <div className="masthead__inner">
-          <Link to="/" className="masthead__brand">
-            <img src="/logo.png" alt="Capitec" className="masthead__logo" width={134} height={73} />
+          <Link to="/" className="masthead__brand" aria-label="Capitec Branch Appointments, home">
+            <img src="/logo.png" alt="" className="masthead__logo" width={134} height={73} />
+            <span className="masthead__divider" aria-hidden="true" />
             <span className="masthead__wordmark">
               <strong>Capitec</strong>
-              <span>Branch appointments</span>
+              <span>Branch Appointments</span>
             </span>
           </Link>
           <nav className="masthead__nav" aria-label="Primary">
