@@ -41,11 +41,11 @@ jobs:
       # Only the review script is checked out (from the trusted, protected base branch);
       # PR code is read through the API as text and never executed. Using the branch name
       # rather than the event's SHA means re-runs pick up fixes merged into the base since.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || '' }}
           sparse-checkout: .github/scripts
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: React to the command
